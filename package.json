@@ -66,6 +66,7 @@
     "build": "pnpm run ensure:js-repl-runtime-assets && pnpm run ensure:browser-extension-relay-assets && pnpm run build:renderer && pnpm run build:electron",
     "build:community": "pnpm run build",
     "build:official": "node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run build",
+    "build:xiaoxin": "node scripts/with-distribution-config.mjs distribution/product.xiaoxin.json -- pnpm run build",
     "build:dev-prep": "pnpm run ensure:js-repl-runtime-assets && pnpm run ensure:browser-extension-relay-assets && pnpm run build:electron",
     "build:locked": "node scripts/build-with-lock.cjs",
     "build:renderer": "cross-env NODE_ENV=production vite build",
@@ -95,7 +96,9 @@
     "generate:model-catalog": "bun scripts/generate-model-catalog.ts",
     "build:dist": "pnpm run download:oix -- --current-platform && pnpm run download:pdfcpu -- --current-platform && pnpm run download:qwen-asr -- --current-platform && pnpm run build:js-repl-runtime && pnpm run build && electron-builder",
     "package:smoke": "node scripts/package-smoke.mjs",
-    "package:smoke:official": "node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run package:smoke",
+    "package:smoke:official": "pnpm run verify:xiaoxin-distribution && node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run package:smoke && pnpm run package:smoke:xiaoxin",
+    "package:smoke:xiaoxin": "node scripts/with-distribution-config.mjs distribution/product.xiaoxin.json -- node scripts/package-smoke.mjs --config distribution/electron-builder.xiaoxin.yml --dist-dir dist-xiaoxin --product-name \"Xiaoxin Workstation\"",
+    "package:xiaoxin:windows": "node scripts/with-distribution-config.mjs distribution/product.xiaoxin.json -- pnpm run build:dist --config distribution/electron-builder.xiaoxin.yml --win nsis zip --x64 --publish never",
     "package:official": "node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run build:dist --config distribution/electron-builder.official.yml",
     "package:official:candidate:mac-arm64": "PYTHON=/usr/bin/python3 CSC_IDENTITY_AUTO_DISCOVERY=false node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run build:dist --config distribution/electron-builder.official-candidate.yml --mac dmg zip --arm64 --publish never",
     "package:internal:mac-arm64": "PYTHON=/usr/bin/python3 CSC_IDENTITY_AUTO_DISCOVERY=false node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run build:dist --config distribution/electron-builder.internal.yml --mac dmg zip --arm64 --publish never",
@@ -141,7 +144,7 @@
     "test:live:lmstudio": "bun test src/lib/codex/lmstudio.live.test.ts",
     "test:coverage": "playwright test --grep-invert @voice && open tests/coverage-report/index.html",
     "install:all": "pnpm install",
-    "typecheck": "pnpm run ensure:codex-generated-types && tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "typecheck": "pnpm run verify:xiaoxin-distribution && pnpm run ensure:codex-generated-types && tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "precommit": "pnpm run typecheck && pnpm run test:unit && pnpm run test:vitest",
     "release:licenses": "pnpm licenses list --prod --json",
     "release:licenses:check": "node scripts/check-production-licenses.mjs",
@@ -159,7 +162,8 @@
     "dev:local:cua-driver": "pnpm run dev:local",
     "reset-config": "npx tsx scripts/reset-config.ts",
     "postinstall": "node -e \"if(!process.env.CI){require('child_process').execSync('electron-rebuild -f -w node-pty,uiohook-napi,interpreter-window-pin',{stdio:'inherit'})}\"",
-    "verify:openai-key": "node scripts/verify-openai-realtime-key.mjs"
+    "verify:openai-key": "node scripts/verify-openai-realtime-key.mjs",
+    "verify:xiaoxin-distribution": "node scripts/verify-xiaoxin-distribution.mjs"
   },
   "devDependencies": {
     "@electron/asar": "3.4.1",

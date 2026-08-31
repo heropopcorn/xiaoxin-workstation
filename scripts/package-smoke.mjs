@@ -8,8 +8,22 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const PNPM_BIN = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const DIST_DIR = path.join(ROOT, 'dist');
-const PRODUCT_NAME = 'Interpreter';
+
+function readOption(name, fallback) {
+  const optionIndex = process.argv.indexOf(name);
+  if (optionIndex === -1) {
+    return fallback;
+  }
+  const value = process.argv[optionIndex + 1];
+  if (!value || value.startsWith('--')) {
+    throw new Error(`Missing value for ${name}`);
+  }
+  return value;
+}
+
+const DIST_DIR = path.resolve(ROOT, readOption('--dist-dir', 'dist'));
+const PRODUCT_NAME = readOption('--product-name', 'Interpreter');
+const BUILDER_CONFIG = readOption('--config', '');
 const PACKAGE_SMOKE_SENTINEL = '[package-smoke] js_repl runtime ok';
 const PACKAGE_SMOKE_SENTRY_SENTINEL = '[package-smoke] sentry runtime ok';
 const REQUIRED_LICENSE_RESOURCES = [
@@ -225,6 +239,7 @@ function main() {
   const args = [
     'exec',
     'electron-builder',
+    ...(BUILDER_CONFIG ? ['--config', BUILDER_CONFIG] : []),
     ...getPlatformArgs(),
     '-c.npmRebuild=false',
     '-c.mac.notarize=false',

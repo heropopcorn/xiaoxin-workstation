@@ -1,0 +1,58 @@
+{
+  "nameShort": "Xiaoxin",
+  "nameLong": "Xiaoxin Workstation",
+  "applicationName": "xiaoxin-workstation",
+  "dataFolderName": ".xiaoxin-workstation",
+  "win32MutexName": "xiaoxin-workstation",
+  "serverApplicationName": "xiaoxin-workstation-server",
+  "serverDataFolderName": ".xiaoxin-workstation-server",
+  "tunnelApplicationName": "xiaoxin-workstation-tunnel",
+  "win32DirName": "Xiaoxin Workstation",
+  "win32NameVersion": "Xiaoxin Workstation",
+  "win32RegValueName": "Xiaoxin Workstation",
+  "win32x64AppId": "{{A1E9CF2D-263E-4040-AA3F-09DDA5DDBB6D}",
+  "win32arm64AppId": "{{26B64F28-3488-4D96-8B3A-7D43B375C9CE}",
+  "win32x64UserAppId": "{{4E59B367-7023-4E98-9368-84F1EDF6190D}",
+  "win32arm64UserAppId": "{{393B8216-068E-4836-85CD-0E336420B3BF}",
+  "win32AppUserModelId": "XinMed.XiaoxinWorkstation",
+  "win32ShellNameShort": "&Xiaoxin",
+  "win32TunnelServiceMutex": "xiaoxin-workstation-tunnelservice",
+  "win32TunnelMutex": "xiaoxin-workstation-tunnel",
+  "darwinBundleIdentifier": "com.xinmed.xiaoxin.workstation",
+  "darwinProfileUUID": "8BCF07E6-4044-4D3A-A119-8E37E0528472",
+  "darwinProfilePayloadUUID": "8BA42E0B-7F49-4C20-8A57-940B2C1ACB15",
+  "linuxIconName": "xiaoxin-workstation",
+  "reportIssueUrl": "https://github.com/heropopcorn/xiaoxin-workstation/issues",
+  "urlProtocol": "xiaoxin-workstation",
+  "distribution": {
+    "id": "xiaoxin",
+    "hostedApiBaseUrl": "",
+    "auth": {
+      "provider": "none",
+      "url": "",
+      "anonKey": "",
+      "storageKey": "xiaoxin-workstation-auth-token"
+    },
+    "telemetry": {
+      "sentryDsn": "",
+      "eventsUrl": "",
+      "eventsAnonKey": ""
+    },
+    "newsletterUrl": "",
+    "interviewBookingUrl": "",
+    "billingApiBaseUrl": "",
+    "updates": {
+      "provider": "none",
+      "bucket": "",
+      "endpoint": "",
+      "path": "",
+      "internalPath": "",
+      "region": "",
+      "acl": ""
+    },
+    "documentEngine": {
+      "releaseRepository": "",
+      "installDirectoryName": "document-engine"
+    }
+  }
+}

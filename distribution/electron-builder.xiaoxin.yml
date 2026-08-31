@@ -1,0 +1,27 @@
+extends: ./electron-builder.yml
+
+appId: com.xinmed.xiaoxin.workstation
+productName: Xiaoxin Workstation
+protocols:
+  - name: Xiaoxin Workstation
+    schemes:
+      - xiaoxin-workstation
+
+directories:
+  output: dist-xiaoxin
+  buildResources: resources
+
+# The internal alpha is a per-user, unsigned package. Signing and managed
+# updates are deliberately deferred until the local file/Shell gate passes.
+mac:
+  sign: null
+  notarize: false
+  hardenedRuntime: false
+
+nsis:
+  perMachine: false
+  allowElevation: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+publish: null
