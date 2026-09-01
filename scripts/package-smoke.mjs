@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,7 +22,8 @@ function readOption(name, fallback) {
 }
 
 const DIST_DIR = path.resolve(ROOT, readOption('--dist-dir', 'dist'));
-const PRODUCT_NAME = readOption('--product-name', 'Interpreter');
+const PRODUCT_CONFIG = JSON.parse(readFileSync(path.join(ROOT, 'product.json'), 'utf8'));
+const PRODUCT_NAME = readOption('--product-name', PRODUCT_CONFIG.nameLong ?? 'Interpreter');
 const BUILDER_CONFIG = readOption('--config', '');
 const PACKAGE_SMOKE_SENTINEL = '[package-smoke] js_repl runtime ok';
 const PACKAGE_SMOKE_SENTRY_SENTINEL = '[package-smoke] sentry runtime ok';

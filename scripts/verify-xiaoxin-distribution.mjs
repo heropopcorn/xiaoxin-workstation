@@ -58,7 +58,6 @@ assert.match(builder, /^publish: null$/m);
 
 assert.match(packageJson.scripts['package:smoke:xiaoxin'], /electron-builder\.xiaoxin\.yml/);
 assert.match(packageJson.scripts['package:smoke:xiaoxin'], /--dist-dir dist-xiaoxin/);
-assert.match(packageJson.scripts['package:smoke:xiaoxin'], /--product-name "Xiaoxin Workstation"/);
 assert.match(packageJson.scripts['package:smoke:official'], /package:smoke:xiaoxin/);
 
 const serializedOverlay = JSON.stringify(overlay).toLowerCase();

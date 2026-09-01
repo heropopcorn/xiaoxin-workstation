@@ -97,7 +97,7 @@
     "build:dist": "pnpm run download:oix -- --current-platform && pnpm run download:pdfcpu -- --current-platform && pnpm run download:qwen-asr -- --current-platform && pnpm run build:js-repl-runtime && pnpm run build && electron-builder",
     "package:smoke": "node scripts/package-smoke.mjs",
     "package:smoke:official": "pnpm run verify:xiaoxin-distribution && node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run package:smoke && pnpm run package:smoke:xiaoxin",
-    "package:smoke:xiaoxin": "node scripts/with-distribution-config.mjs distribution/product.xiaoxin.json -- node scripts/package-smoke.mjs --config distribution/electron-builder.xiaoxin.yml --dist-dir dist-xiaoxin --product-name \"Xiaoxin Workstation\"",
+    "package:smoke:xiaoxin": "node scripts/with-distribution-config.mjs distribution/product.xiaoxin.json -- node scripts/package-smoke.mjs --config distribution/electron-builder.xiaoxin.yml --dist-dir dist-xiaoxin",
     "package:xiaoxin:windows": "node scripts/with-distribution-config.mjs distribution/product.xiaoxin.json -- pnpm run build:dist --config distribution/electron-builder.xiaoxin.yml --win nsis zip --x64 --publish never",
     "package:official": "node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run build:dist --config distribution/electron-builder.official.yml",
     "package:official:candidate:mac-arm64": "PYTHON=/usr/bin/python3 CSC_IDENTITY_AUTO_DISCOVERY=false node scripts/with-distribution-config.mjs distribution/product.official.json -- pnpm run build:dist --config distribution/electron-builder.official-candidate.yml --mac dmg zip --arm64 --publish never",
