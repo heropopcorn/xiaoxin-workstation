@@ -9,12 +9,14 @@ const basePath = path.join(root, 'product.json');
 const packagePath = path.join(root, 'package.json');
 const overlayPath = path.join(root, 'distribution', 'product.xiaoxin.json');
 const builderPath = path.join(root, 'distribution', 'electron-builder.xiaoxin.yml');
+const packageSmokePath = path.join(root, 'scripts', 'package-smoke.mjs');
 const windowsGatePath = path.join(root, 'scripts', 'xiaoxin-windows-gate.ps1');
 
 const base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
 const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const overlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
 const builder = fs.readFileSync(builderPath, 'utf8');
+const packageSmoke = fs.readFileSync(packageSmokePath, 'utf8');
 
 assert.equal(overlay.nameShort, 'Xiaoxin');
 assert.equal(overlay.nameLong, 'Xiaoxin Workstation');
@@ -59,6 +61,7 @@ assert.match(builder, /^publish: null$/m);
 assert.match(packageJson.scripts['package:smoke:xiaoxin'], /electron-builder\.xiaoxin\.yml/);
 assert.match(packageJson.scripts['package:smoke:xiaoxin'], /--dist-dir dist-xiaoxin/);
 assert.match(packageJson.scripts['package:smoke:official'], /package:smoke:xiaoxin/);
+assert.match(packageSmoke, /PRODUCT_CONFIG\.linuxIconName/);
 
 const serializedOverlay = JSON.stringify(overlay).toLowerCase();
 for (const forbidden of [

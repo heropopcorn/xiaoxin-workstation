@@ -97,7 +97,7 @@ function resolvePackagedAppBinary(resourcesRoot) {
   const unpackedDir = path.dirname(resourcesRoot);
   const candidateNames = process.platform === 'win32'
     ? [`${PRODUCT_NAME}.exe`]
-    : [PRODUCT_NAME, PRODUCT_NAME.toLowerCase()];
+    : [PRODUCT_CONFIG.linuxIconName, PRODUCT_NAME, PRODUCT_NAME.toLowerCase()].filter(Boolean);
 
   for (const candidateName of candidateNames) {
     const candidatePath = path.join(unpackedDir, candidateName);
