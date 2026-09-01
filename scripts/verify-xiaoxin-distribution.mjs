@@ -11,6 +11,7 @@ const overlayPath = path.join(root, 'distribution', 'product.xiaoxin.json');
 const builderPath = path.join(root, 'distribution', 'electron-builder.xiaoxin.yml');
 const packageSmokePath = path.join(root, 'scripts', 'package-smoke.mjs');
 const windowsGatePath = path.join(root, 'scripts', 'xiaoxin-windows-gate.ps1');
+const gateFixturePath = path.join(root, 'tests', 'fixtures', 'xiaoxin-local-gate');
 
 const base = JSON.parse(fs.readFileSync(basePath, 'utf8'));
 const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
@@ -62,6 +63,29 @@ assert.match(packageJson.scripts['package:smoke:xiaoxin'], /electron-builder\.xi
 assert.match(packageJson.scripts['package:smoke:xiaoxin'], /--dist-dir dist-xiaoxin/);
 assert.match(packageJson.scripts['package:smoke:official'], /package:smoke:xiaoxin/);
 assert.match(packageSmoke, /PRODUCT_CONFIG\.linuxIconName/);
+
+const gateScript = fs.readFileSync(windowsGatePath, 'utf8');
+assert.match(gateScript, /rev-parse', 'HEAD'/);
+assert.doesNotMatch(gateScript, /\[string\]\$Ref = '[0-9a-fA-F]{40}'/);
+for (const fixtureName of [
+  '业务数据.csv',
+  '任务说明.txt',
+  'expected.json',
+  'eval-record.template.json',
+]) {
+  assert.equal(fs.existsSync(path.join(gateFixturePath, fixtureName)), true, `missing gate fixture: ${fixtureName}`);
+}
+const gateExpected = JSON.parse(fs.readFileSync(path.join(gateFixturePath, 'expected.json'), 'utf8'));
+assert.deepEqual(
+  [gateExpected.salesTotal, gateExpected.researchTotal, gateExpected.grandTotal],
+  [250, 170, 420],
+);
+const evalTemplate = JSON.parse(fs.readFileSync(path.join(gateFixturePath, 'eval-record.template.json'), 'utf8'));
+assert.equal(evalTemplate.evalContract, 'xiaoxin_bot/docs/eval-contract.md');
+assert.equal(evalTemplate.evalContractTask, 16);
+for (const metric of ['deliverableUsable', 'modelTurns', 'toolCalls', 'wallClockMs', 'humanInterventions']) {
+  assert.equal(Object.hasOwn(evalTemplate, metric), true, `evaluation template is missing metric: ${metric}`);
+}
 
 const serializedOverlay = JSON.stringify(overlay).toLowerCase();
 for (const forbidden of [

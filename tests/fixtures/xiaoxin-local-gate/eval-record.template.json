@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "evalContract": "xiaoxin_bot/docs/eval-contract.md",
+  "evalContractTask": 16,
+  "runId": "",
+  "startedAt": "",
+  "finishedAt": "",
+  "provider": "",
+  "model": "",
+  "deliverableUsable": null,
+  "modelTurns": null,
+  "toolCalls": null,
+  "wallClockMs": null,
+  "humanInterventions": {
+    "clarifications": null,
+    "approvals": null,
+    "rewrites": null,
+    "retries": null,
+    "total": null
+  },
+  "outputSha256": "",
+  "tracePath": "",
+  "failureReason": "",
+  "notes": ""
+}

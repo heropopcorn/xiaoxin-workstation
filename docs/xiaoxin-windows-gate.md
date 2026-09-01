@@ -1,8 +1,8 @@
 # Xiaoxin Windows source gate
 
-This gate validates the pinned, unmodified Workstation source on an employee
-Windows machine before Xiaoxin replaces its prototype runtime. It deliberately
-keeps provider credentials out of scripts and evidence.
+This gate validates the exact Xiaoxin Workstation checkout on an employee
+Windows machine. It deliberately keeps provider credentials out of scripts and
+evidence.
 
 ## Scope
 
@@ -44,11 +44,12 @@ Set-ExecutionPolicy -Scope Process Bypass
 & .\scripts\xiaoxin-windows-gate.ps1 -Phase Prepare
 ```
 
-The command clones the exact candidate SHA
-`e7318fdfac932463f704ff8ce2cf257cbf0a043b` into a new timestamped directory
-below `%USERPROFILE%\xiaoxin-workstation-gate`. It never deletes or reuses an
-old session. It then runs frozen install, pinned runtime downloads, typecheck,
-unit tests, Vitest, build, and package smoke.
+The command resolves the checkout that contains this script to a full Git SHA,
+then clones and checks out that exact SHA in a new timestamped directory below
+`%USERPROFILE%\xiaoxin-workstation-gate`. It never follows a moving branch and
+never deletes or reuses an old session. To test a different reviewed commit,
+pass its full SHA with `-Ref`. Preparation then runs frozen install, pinned
+runtime downloads, typecheck, unit tests, Vitest, build, and package smoke.
 
 If preparation fails, keep the timestamped directory and its `evidence\logs`.
 Do not patch application code to make the gate pass.
@@ -120,6 +121,12 @@ the workspace/session remains usable.
 Open the printed `evidence\manual-result.json`. Fill `operator` and `notes`, and
 change every checkpoint to `true` only when it was directly observed. Do not
 change `null` to `true` based on an assumption.
+
+Also fill `evidence\eval-record.json`. Do not put a provider key or raw secret
+in this file. Record the provider/model names, wall-clock duration, model turns,
+tool calls, human interventions, deliverable judgment, and trace path. The
+template links this run to task 16 in the shared
+`xiaoxin_bot/docs/eval-contract.md`; it does not copy the 18-task contract.
 
 Copy screenshots into the same `evidence` directory using names that do not
 contain secrets, for example:

@@ -9,3 +9,8 @@ for the original marketing-demo research-note PDF.
 Other documents under this directory are synthetic test inputs maintained with
 the source. Third-party formats, runtimes, models, and dependencies retain their
 own licenses; see `docs/dependency-licensing.md`.
+
+`xiaoxin-local-gate/` is the synthetic, credential-free fixture for Xiaoxin's
+employee Windows file/Shell/approval gate. Its expected values and evaluation
+record template are versioned beside the inputs so repeated runs use the same
+contract.
