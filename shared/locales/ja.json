@@ -400,6 +400,7 @@
   "settings.overlay.serverNotice": "overlay は当社サーバーの技術を利用しています。<privacyLink>プライバシーポリシー</privacyLink> と <telemetryLink>テレメトリ設定</telemetryLink> を通じて、あなたのプライバシーを尊重します。",
   "settings.overlay.hotkeyLabel": "Activation shortcut",
   "settings.overlay.hotkeyDescription": "ショートカットに使う修飾キーとキーを選んでください",
+  "settings.overlay.hotkeyWindowsImeHint": "Windows では Control+Space が入力切替に使われることがあります。オーバーレイが開かない場合は、別のショートカットに変更してください。",
   "settings.overlay.hotkeyRecordingValue": "Press shortcut...",
   "settings.overlay.hotkeyChangeButton": "Change",
   "settings.overlay.hotkeyRecordingButton": "Recording",

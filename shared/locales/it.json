@@ -328,6 +328,7 @@
   "settings.overlay.serverNotice": "L'overlay utilizza la tecnologia dei nostri server. Rispettiamo la tua privacy (<privacyLink>informativa sulla privacy</privacyLink>) e <telemetryLink>impostazioni di telemetria</telemetryLink>.",
   "settings.overlay.hotkeyLabel": "Scorciatoia di attivazione",
   "settings.overlay.hotkeyDescription": "Scegli un modificatore e un tasto per la scorciatoia",
+  "settings.overlay.hotkeyWindowsImeHint": "Su Windows, Control+Space spesso cambia il metodo di input. Se l'overlay non si apre, cambia questa scorciatoia.",
   "settings.overlay.hotkeyRecordingValue": "Premi la scorciatoia...",
   "settings.overlay.hotkeyChangeButton": "Modifica",
   "settings.overlay.hotkeyRecordingButton": "Registrazione",

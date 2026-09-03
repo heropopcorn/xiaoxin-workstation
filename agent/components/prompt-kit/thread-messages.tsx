@@ -734,7 +734,7 @@ export function UserMessageBubble({
   onClick,
 }: {
   content: string;
-  attachments?: Array<{ id: string; kind: 'image'; name: string }>;
+  attachments?: Array<{ id: string; kind: 'image'; name: string; dataUrl?: string; mimeType?: string }>;
   isPinned?: boolean;
   isWideLayout?: boolean;
   onClick?: () => void;
@@ -779,21 +779,31 @@ export function UserMessageBubble({
           {attachments.length > 0 ? (
             <div className="mb-2 flex flex-wrap justify-end gap-1.5">
               {attachments.map((attachment) => (
-                <span
-                  key={attachment.id}
-                  className="composer-attachment-chip"
-                  data-attachment-kind="pasted-text"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    borderColor: 'rgba(255, 255, 255, 0.14)',
-                    color: 'var(--oa-text, var(--foreground))',
-                  }}
-                >
-                  <AttachmentChipBody
-                    kind="pasted-text"
-                    label={attachment.name}
+                attachment.dataUrl ? (
+                  <img
+                    key={attachment.id}
+                    src={attachment.dataUrl}
+                    alt={attachment.name}
+                    data-attachment-kind="image"
+                    className="max-h-64 max-w-full rounded-lg object-contain"
                   />
-                </span>
+                ) : (
+                  <span
+                    key={attachment.id}
+                    className="composer-attachment-chip"
+                    data-attachment-kind="pasted-text"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      borderColor: 'rgba(255, 255, 255, 0.14)',
+                      color: 'var(--oa-text, var(--foreground))',
+                    }}
+                  >
+                    <AttachmentChipBody
+                      kind="pasted-text"
+                      label={attachment.name}
+                    />
+                  </span>
+                )
               ))}
             </div>
           ) : null}

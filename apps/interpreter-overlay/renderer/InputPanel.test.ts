@@ -187,6 +187,7 @@ describe('InputPanel Enter submit keydown decision', () => {
     expect(isComposerSubmitKeydown({ key: 'Enter', shiftKey: false, isComposing: false })).toBe(true);
     expect(isComposerSubmitKeydown({ key: 'Enter', shiftKey: true, isComposing: false })).toBe(false);
     expect(isComposerSubmitKeydown({ key: 'Enter', shiftKey: false, isComposing: true })).toBe(false);
+    expect(isComposerSubmitKeydown({ key: 'Enter', shiftKey: false, isComposing: false, repeat: true })).toBe(false);
     expect(isComposerSubmitKeydown({ key: 'a', shiftKey: false, isComposing: false })).toBe(false);
   });
 });

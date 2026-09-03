@@ -28,7 +28,10 @@ export function resolveOverlaySettingsForCurrentAccount(
     return settings;
   }
 
-  if (!settings.accountUserId || settings.accountUserId !== currentUserId) {
+  // Unsigned local overlay (no hosted account) must stay enabled across
+  // Settings remounts. Only disable when the saved account and the current
+  // session actually disagree.
+  if (settings.accountUserId !== currentUserId) {
     return {
       ...settings,
       enabled: false,

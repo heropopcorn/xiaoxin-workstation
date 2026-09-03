@@ -328,6 +328,7 @@
   "settings.overlay.serverNotice": "Наложение использует технологию с наших серверов. Мы уважаем вашу конфиденциальность (<privacyLink>политика конфиденциальности</privacyLink>) и <telemetryLink>настройки телеметрии</telemetryLink>.",
   "settings.overlay.hotkeyLabel": "Сочетание клавиш для активации",
   "settings.overlay.hotkeyDescription": "Выберите модификатор и клавишу для сочетания",
+  "settings.overlay.hotkeyWindowsImeHint": "В Windows сочетание Control+Space часто переключает метод ввода. Если оверлей не открывается, измените эту комбинацию.",
   "settings.overlay.hotkeyRecordingValue": "Нажмите сочетание клавиш...",
   "settings.overlay.hotkeyChangeButton": "Изменить",
   "settings.overlay.hotkeyRecordingButton": "Запись",

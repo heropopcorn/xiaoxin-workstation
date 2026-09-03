@@ -1340,6 +1340,11 @@ export function OverlaySectionContent() {
               <div className="mt-1 max-w-2xl text-ui-sm leading-6 text-muted-foreground text-pretty">
                 {t("settings.overlay.hotkeyDescription")}
               </div>
+              {runtimePlatform === "win32" && settingsState.hotkey === "Control+Space" ? (
+                <div className="mt-1 max-w-2xl text-ui-sm leading-6 text-muted-foreground text-pretty">
+                  {t("settings.overlay.hotkeyWindowsImeHint")}
+                </div>
+              ) : null}
             </div>
             <div className="grid w-full items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:max-w-[23rem]">
               <Input
@@ -1401,33 +1406,35 @@ export function OverlaySectionIntroContent() {
         <p className="text-ui-sm leading-6 text-muted-foreground text-pretty">
           {t("settings.overlay.blurbSecondary")}
         </p>
-        <SettingsCard tone="muted" className="max-w-[560px]">
-          <p className="text-ui-sm leading-6 text-muted-foreground text-pretty">
-            <Trans
-              i18nKey="settings.overlay.serverNotice"
-              components={{
-                privacyLink: (
-                  <button
-                    type="button"
-                    className="inline font-medium text-foreground underline decoration-[color-mix(in_srgb,var(--foreground)_22%,transparent)] underline-offset-2 transition-colors hover:text-foreground/80"
-                    onClick={() => {
-                      void openExternal(
-                        "https://www.openinterpreter.com/legal/privacy",
-                      );
-                    }}
-                  />
-                ),
-                telemetryLink: (
-                  <button
-                    type="button"
-                    className="inline font-medium text-foreground underline decoration-[color-mix(in_srgb,var(--foreground)_22%,transparent)] underline-offset-2 transition-colors hover:text-foreground/80"
-                    onClick={() => openSettings(undefined, "telemetry")}
-                  />
-                ),
-              }}
-            />
-          </p>
-        </SettingsCard>
+        {getInterpreterHostedApiBaseUrl() ? (
+          <SettingsCard tone="muted" className="max-w-[560px]">
+            <p className="text-ui-sm leading-6 text-muted-foreground text-pretty">
+              <Trans
+                i18nKey="settings.overlay.serverNotice"
+                components={{
+                  privacyLink: (
+                    <button
+                      type="button"
+                      className="inline font-medium text-foreground underline decoration-[color-mix(in_srgb,var(--foreground)_22%,transparent)] underline-offset-2 transition-colors hover:text-foreground/80"
+                      onClick={() => {
+                        void openExternal(
+                          "https://www.openinterpreter.com/legal/privacy",
+                        );
+                      }}
+                    />
+                  ),
+                  telemetryLink: (
+                    <button
+                      type="button"
+                      className="inline font-medium text-foreground underline decoration-[color-mix(in_srgb,var(--foreground)_22%,transparent)] underline-offset-2 transition-colors hover:text-foreground/80"
+                      onClick={() => openSettings(undefined, "telemetry")}
+                    />
+                  ),
+                }}
+              />
+            </p>
+          </SettingsCard>
+        ) : null}
       </div>
     </div>
   );

@@ -400,6 +400,7 @@
   "settings.overlay.serverNotice": "overlay는 당사 서버의 기술을 사용합니다. 당사는 <privacyLink>개인정보 처리방침</privacyLink>과 <telemetryLink>텔레메트리 설정</telemetryLink>을 통해 귀하의 개인정보를 존중합니다.",
   "settings.overlay.hotkeyLabel": "Activation shortcut",
   "settings.overlay.hotkeyDescription": "단축키에 사용할 보조 키와 키를 고르세요",
+  "settings.overlay.hotkeyWindowsImeHint": "Windows에서 Control+Space는 입력기 전환에 쓰이는 경우가 많습니다. 오버레이가 열리지 않으면 단축키를 바꿔 주세요.",
   "settings.overlay.hotkeyRecordingValue": "Press shortcut...",
   "settings.overlay.hotkeyChangeButton": "Change",
   "settings.overlay.hotkeyRecordingButton": "Recording",

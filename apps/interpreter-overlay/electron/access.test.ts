@@ -69,6 +69,25 @@ describe('overlay access helpers', () => {
     });
   });
 
+  test('resolveOverlaySettingsForCurrentAccount keeps unsigned local overlay enabled', async () => {
+    const { resolveOverlaySettingsForCurrentAccount } = await import('./access');
+    const unsignedSettings = {
+      ...settings,
+      accountUserId: null,
+    };
+
+    expect(resolveOverlaySettingsForCurrentAccount(unsignedSettings, null)).toEqual(unsignedSettings);
+  });
+
+  test('resolveOverlaySettingsForCurrentAccount disables enabled overlay when a signed-in user is signed out', async () => {
+    const { resolveOverlaySettingsForCurrentAccount } = await import('./access');
+
+    expect(resolveOverlaySettingsForCurrentAccount(settings, null)).toEqual({
+      ...settings,
+      enabled: false,
+    });
+  });
+
   test('resolveOverlaySettingsForCurrentAccount disables enabled overlay for a different user', async () => {
     const { resolveOverlaySettingsForCurrentAccount } = await import('./access');
 

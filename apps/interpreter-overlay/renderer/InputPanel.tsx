@@ -109,8 +109,13 @@ function shouldHighlightContextChip(item: OverlayContextItem | undefined, highli
  * overlay window (the textarea can lose DOM focus to non-focusable overlay
  * surfaces while the typed draft is still pending).
  */
-function isComposerSubmitKeydown(event: { key: string; shiftKey: boolean; isComposing: boolean }): boolean {
-  return event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+function isComposerSubmitKeydown(event: {
+  key: string;
+  shiftKey: boolean;
+  isComposing: boolean;
+  repeat?: boolean;
+}): boolean {
+  return event.key === 'Enter' && !event.shiftKey && !event.isComposing && !event.repeat;
 }
 
 /**
@@ -1024,6 +1029,7 @@ export function InputPanel({
                     key: event.key,
                     shiftKey: event.shiftKey,
                     isComposing: event.nativeEvent.isComposing,
+                    repeat: event.repeat,
                   })) {
                     event.preventDefault();
                     handleSubmit();

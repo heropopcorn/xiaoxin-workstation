@@ -400,6 +400,7 @@
   "settings.overlay.serverNotice": "El overlay usa tecnología de nuestros servidores. Respetamos tu privacidad (<privacyLink>política de privacidad</privacyLink>) y tu <telemetryLink>configuración de telemetría</telemetryLink>.",
   "settings.overlay.hotkeyLabel": "Activation shortcut",
   "settings.overlay.hotkeyDescription": "Elige una tecla modificadora y una tecla para el atajo",
+  "settings.overlay.hotkeyWindowsImeHint": "En Windows, Control+Space suele cambiar el método de entrada. Si el overlay no se abre, cambia este atajo.",
   "settings.overlay.hotkeyRecordingValue": "Press shortcut...",
   "settings.overlay.hotkeyChangeButton": "Change",
   "settings.overlay.hotkeyRecordingButton": "Recording",

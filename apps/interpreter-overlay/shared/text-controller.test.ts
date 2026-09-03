@@ -3,6 +3,7 @@ import type { OverlayContextItem, OverlayRegionContextItem } from './ipc';
 import { buildOverlayTargetIdentity, buildCurrentSelectionContext } from './target-identity';
 import {
   buildOverlayBrowserControlStateFromStatus,
+  buildOverlayHeadedAgentLaunchParts,
   buildOverlayTextControllerContextPrompt,
   buildOverlayWholeComputerStateText,
   buildOverlayWorkingPreferencesText,
@@ -878,6 +879,43 @@ describe('overlay text controller request', () => {
     expect(prompt).toContain('<overlay_available_tools>');
     expect(prompt.endsWith('\n\nWhat is selected?')).toBeTrue();
     expect(prompt).not.toContain('<overlay_recent_turns');
+  });
+
+  test('headed agent launch keeps overlay XML in system context and user text in the visible message', () => {
+    const target = targetRegion('target-1', 'Checkout form');
+    const request = buildOverlayTextControllerRequest({
+      text: '这个界面是做什么的',
+      serviceContextItems: [target],
+      workspacePath: '/workspace',
+      targetWindowSessionKey: 'window-2',
+      profileId: 'profile-action',
+      renderedProfileId: null,
+      inputMethod: 'text',
+      now: 1000,
+    });
+
+    const parts = buildOverlayHeadedAgentLaunchParts(request, {
+      availableToolsText: '<overlay_available_tools>\n<tool name="computer_batch">\n</overlay_available_tools>',
+      includeAvailableTools: false,
+      wholeComputerState: {
+        workspacePath: '/workspace',
+        targetWindowSessionKey: 'window-2',
+        targetContextLabel: 'Checkout form',
+        targetIdentityId: 'overlay-target-1',
+        overlayTarget: null,
+        contextItemCount: 1,
+        referenceContextCount: 0,
+        windows: [],
+        browserControl: null,
+      },
+    });
+
+    expect(parts.userMessage).toBe('这个界面是做什么的');
+    expect(parts.userMessage).not.toContain('<overlay_whole_computer_state>');
+    expect(parts.userMessage).not.toContain('<overlay_available_tools>');
+    expect(parts.systemContext).toContain('<overlay_whole_computer_state>');
+    expect(parts.systemContext).not.toContain('<overlay_available_tools>');
+    expect(parts.systemContext).not.toContain('这个界面是做什么的');
   });
 
   test('formats saved custom instructions as overlay working preferences', () => {

@@ -2183,6 +2183,22 @@ export function Overlay() {
     text: string,
     attachments?: OverlayUserAttachment[],
   ) => {
+    const submittedValue = text.trim();
+    if (!submittedValue && (attachments?.length ?? 0) === 0) {
+      return;
+    }
+
+    const now = Date.now();
+    if (
+      lastSubmitRef.current
+      && lastSubmitRef.current.text === submittedValue
+      && now - lastSubmitRef.current.at < 250
+    ) {
+      return;
+    }
+    lastSubmitRef.current = { text: submittedValue, at: now };
+    pendingLocalDraftRef.current = false;
+
     const submitBootstrap = await window.overlay.getBootstrap();
     setOverlayBootstrap(submitBootstrap);
 
@@ -2219,17 +2235,6 @@ export function Overlay() {
       return;
     }
 
-    const now = Date.now();
-    if (
-      lastSubmitRef.current
-      && lastSubmitRef.current.text === submittedValue
-      && now - lastSubmitRef.current.at < 250
-    ) {
-      return;
-    }
-
-    lastSubmitRef.current = { text: submittedValue, at: now };
-    pendingLocalDraftRef.current = false;
     void sendOverlaySubmit(submittedValue);
   };
 
@@ -2260,7 +2265,7 @@ export function Overlay() {
 
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       const isSubmitKey = event.key === 'Enter' || event.code === 'NumpadEnter';
-      if (!isSubmitKey || event.shiftKey || event.isComposing) {
+      if (!isSubmitKey || event.shiftKey || event.repeat || event.isComposing) {
         return;
       }
 

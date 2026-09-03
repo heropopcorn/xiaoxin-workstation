@@ -32,6 +32,17 @@ describe('overlay text controller routing contract', () => {
     expect(submitHandler).toContain('buildOverlayTextControllerRequest');
     expect(submitHandler).toContain('executeOverlayTextControllerDirectCommand');
     expect(submitHandler).toContain('startAgentTask');
+    expect(submitHandler).toContain('buildOverlayHeadedAgentLaunchParts');
+    expect(submitHandler).toContain('includeAvailableTools: false');
+    expect(submitHandler).toContain('captureOverlayScreenshotAttachment');
+    expect(submitHandler).toContain('startupAttachments');
+    expect(submitHandler).toContain('toOverlayStreamImageAttachments');
+    expect(submitHandler).toContain('focusOverlayTargetWorkstationWindow');
+    expect(submitHandler).toContain('dismissOverlayPresentationAfterSubmit');
+    expect(submitHandler).toContain('dismissOverlaySelectionForHeadedWorkspaceLaunch');
+    expect(submitHandler).toContain('message: launchParts.userMessage');
+    expect(submitHandler).not.toContain('message: prependOverlayMentions(effectivePrompt, imageMentions)');
+    expect(submitHandler).not.toContain('captureOverlayScreenshotMention');
     expect(submitHandler).not.toContain('postAdvancedVoiceCreateCall');
     expect(submitHandler).not.toContain('ADVANCED_VOICE_CREATE_CALL');
     expect(submitHandler).not.toContain('/realtime/calls');
@@ -55,7 +66,7 @@ describe('overlay text controller routing contract', () => {
     expect(afterTargetLaunch).not.toContain("notePresentationCloseRequested('background_agent_started')");
     expect(afterTargetLaunch).not.toContain('this.runStartedAt = null');
     expect(afterTargetLaunch).not.toContain('this.lastRunInputMethod = null');
-    expect(targetWindowResolve).toContain('{ background: !targetContext }');
+    expect(targetWindowResolve).toContain('{ background: !canControlSelectedTarget }');
     expect(submitHandler.slice(targetBranchStart, launchRecordStart)).toContain('activate: true');
   });
 
@@ -68,6 +79,38 @@ describe('overlay text controller routing contract', () => {
     expect(hydrationStart).toBeGreaterThanOrEqual(0);
     expect(promptStart).toBeGreaterThan(hydrationStart);
     expect(sessionStart).toBeGreaterThan(hydrationStart);
+  });
+
+  test('typed submit dismisses overlay chrome before target hydration can redraw selection frames', () => {
+    const serviceSource = readOverlayService();
+    const submitHandler = extractSubmitHandler(serviceSource);
+    const dismissMethod = extractMethod(serviceSource, 'private dismissOverlayPresentationAfterSubmit');
+    const sendMethod = extractMethod(serviceSource, 'private send(');
+    const ensureMethod = extractMethod(serviceSource, 'private async ensureExecutableContextForTarget');
+    const dismissStart = submitHandler.indexOf('this.dismissOverlayPresentationAfterSubmit()');
+    const snapshotStart = submitHandler.indexOf('const serviceContextSnapshot = [...this.overlayState.contextItems]');
+    const hydrationStart = submitHandler.indexOf('await this.ensureExecutableContextForTarget');
+    const waitStart = submitHandler.indexOf("await this.waitForPendingHotkeyContext('submit'");
+    const workingSendStart = submitHandler.indexOf("mode: 'working'");
+
+    expect(snapshotStart).toBeGreaterThanOrEqual(0);
+    expect(dismissStart).toBeGreaterThan(snapshotStart);
+    expect(waitStart).toBeGreaterThan(dismissStart);
+    expect(hydrationStart).toBeGreaterThan(dismissStart);
+    expect(submitHandler).toContain('awaitTargetHydration: false');
+    expect(submitHandler).toContain('presentSelection: false');
+    expect(submitHandler).toContain('serviceContextItems: serviceContextSnapshot');
+    expect(submitHandler).toContain('submittedContextItems: submittedContextSnapshot');
+    expect(workingSendStart).toBeGreaterThan(hydrationStart);
+    expect(dismissMethod).toContain('this.suppressDesktopAgentDashboard = true');
+    expect(dismissMethod).toContain('this.dismissOverlaySelectionForHeadedWorkspaceLaunch()');
+    expect(dismissMethod).toContain('this.send({ ...DEFAULT_OVERLAY_STATE })');
+    expect(dismissMethod).toContain('this.overlay.hide()');
+    expect(sendMethod).toContain('if (this.suppressDesktopAgentDashboard)');
+    expect(sendMethod).toContain('this.overlay.hide()');
+    expect(sendMethod).toContain('!this.suppressDesktopAgentDashboard');
+    expect(ensureMethod).toContain('presentSelection');
+    expect(ensureMethod).toContain('this.suppressDesktopAgentDashboard');
   });
 
   test('records typed agent launch attempts in managed overlay context', () => {
@@ -98,7 +141,7 @@ describe('overlay text controller routing contract', () => {
   test('attempts the typed fast path before launching the attached-target agent', () => {
     const submitHandler = extractSubmitHandler(readOverlayService());
 
-    const backgroundBranchStart = submitHandler.indexOf('if (!targetContext) {');
+    const backgroundBranchStart = submitHandler.indexOf('if (!canControlSelectedTarget) {');
     const fastPathGuardStart = submitHandler.indexOf('if (trimmedText && hasExecutableTargetRefs(targetContext)) {');
     const fastPathCallStart = submitHandler.indexOf('await this.attemptOverlayTypedFastPathSubmit({');
     const agentSessionStart = submitHandler.indexOf('const session = await this.createAgentToolSession');
@@ -188,6 +231,20 @@ describe('overlay text controller routing contract', () => {
     const serviceSource = readOverlayService();
     expect(serviceSource).toContain('environmentKey: resolveFormTestsApiEnvironmentKey(baseURL)');
     expect(serviceSource).not.toContain('apiKey: resolveFormTestsApiKey(baseURL)');
+  });
+
+  test('reveals headed overlay agents by focusing the workstation window', () => {
+    const serviceSource = readOverlayService();
+    const revealMethod = extractMethod(serviceSource, 'private revealOverlayAgentWindow');
+    const revealCaseStart = serviceSource.indexOf("case 'reveal-agent-window':");
+    const revealCase = serviceSource.slice(revealCaseStart, serviceSource.indexOf('break;', revealCaseStart));
+
+    expect(revealMethod).toContain('agentTabManager.requestAgentWindowReveal(agentId)');
+    expect(revealMethod).toContain('this.focusOverlayTargetWorkstationWindow');
+    expect(revealMethod).toContain('this.overlay.hide()');
+    expect(revealMethod).toContain('this.suppressDesktopAgentDashboard = true');
+    expect(revealCase).toContain('this.revealOverlayAgentWindow(action.agentId)');
+    expect(revealCase).not.toContain('agentTabManager.requestAgentWindowReveal(action.agentId)');
   });
 
   test('keeps overlay hotkey selection import on the builtin selection tool path', () => {

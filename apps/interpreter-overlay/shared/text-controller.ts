@@ -268,6 +268,7 @@ export interface BuildOverlayTextControllerContextPromptOptions {
   availableToolsText?: string | null;
   wholeComputerState?: OverlayWholeComputerState | null;
   customInstructions?: string | null;
+  includeAvailableTools?: boolean;
 }
 
 const DEFAULT_MANAGED_CONTEXT_MAX_AGE_MS = 3 * 60 * 1000;
@@ -1028,19 +1029,35 @@ export function buildOverlayWorkingPreferencesText(customInstructions: string | 
   ].join('\n');
 }
 
-export function buildOverlayTextControllerContextPrompt(
+export function buildOverlayHeadedAgentLaunchParts(
   request: OverlayTextControllerRequest,
   options: BuildOverlayTextControllerContextPromptOptions = {},
-): string {
+): { userMessage: string; systemContext: string } {
   const contextPacket = buildOverlayContextPacketText(request.contextItems).trim();
   const wholeComputerStateText = buildOverlayWholeComputerStateText(options.wholeComputerState).trim();
   const workingPreferencesText = buildOverlayWorkingPreferencesText(options.customInstructions).trim();
   const managedContextText = buildManagedContextText(request.managedContext).trim();
-  const availableToolsText = options.availableToolsText?.trim() ?? '';
-  const userText = request.text.trim();
-  return [contextPacket, wholeComputerStateText, workingPreferencesText, managedContextText, availableToolsText, userText]
-    .filter(Boolean)
-    .join('\n\n');
+  const availableToolsText = options.includeAvailableTools === false
+    ? ''
+    : (options.availableToolsText?.trim() ?? '');
+  return {
+    userMessage: request.text.trim(),
+    systemContext: [
+      contextPacket,
+      wholeComputerStateText,
+      workingPreferencesText,
+      managedContextText,
+      availableToolsText,
+    ].filter(Boolean).join('\n\n'),
+  };
+}
+
+export function buildOverlayTextControllerContextPrompt(
+  request: OverlayTextControllerRequest,
+  options: BuildOverlayTextControllerContextPromptOptions = {},
+): string {
+  const { userMessage, systemContext } = buildOverlayHeadedAgentLaunchParts(request, options);
+  return [systemContext, userMessage].filter(Boolean).join('\n\n');
 }
 
 export function buildOverlayTextControllerRequest(

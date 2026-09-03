@@ -400,6 +400,7 @@
   "settings.overlay.serverNotice": "overlay 使用来自我们服务器的技术。我们尊重你的隐私（<privacyLink>隐私政策</privacyLink>）和<telemetryLink>遥测设置</telemetryLink>。",
   "settings.overlay.hotkeyLabel": "Activation shortcut",
   "settings.overlay.hotkeyDescription": "为这个快捷键选择一个修饰键和按键",
+  "settings.overlay.hotkeyWindowsImeHint": "在 Windows 上，Ctrl+Space 常被输入法占用。如果悬浮层没有出现，请改成别的快捷键。",
   "settings.overlay.hotkeyRecordingValue": "Press shortcut...",
   "settings.overlay.hotkeyChangeButton": "Change",
   "settings.overlay.hotkeyRecordingButton": "Recording",

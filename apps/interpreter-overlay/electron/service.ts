@@ -49,6 +49,10 @@ import {
 import { getWindowSessionByKey, listWindowSessions } from '../../../server/utils/windowSessions';
 import { callHiddenAgentTool } from '../../../server/tools/builtin-tools/interpreter-overlay/hiddenAgentTool';
 import type { StreamImageAttachment } from '../../../src/lib/codex/api-types';
+import {
+  createOverlayScreenshotStreamAttachment,
+  toOverlayStreamImageAttachments,
+} from './overlay-headed-launch-attachments.js';
 import { isTerminalProfile, profileToModelConfig, type Profile } from '../../../shared/types/profile';
 import {
   markOnboardingStepIdComplete,
@@ -161,6 +165,7 @@ import {
 } from '../shared/settings.js';
 import { AdvancedVoiceController } from './advanced-voice-controller.js';
 import {
+  buildOverlayHeadedAgentLaunchParts,
   buildOverlayTextControllerContextPrompt,
   buildOverlayTextControllerRequest,
   buildOverlayBrowserControlStateFromStatus,
@@ -690,6 +695,7 @@ function showOverlayAgentNotification(options: {
   body: string;
   targetWindowId: number | null;
   showMainWindow: () => void;
+  hideOverlay?: () => void;
 }): void {
   try {
     if (!Notification.isSupported()) {
@@ -703,10 +709,15 @@ function showOverlayAgentNotification(options: {
     });
 
     notification.on('click', () => {
+      options.hideOverlay?.();
       const targetWindow = options.targetWindowId
         ? BrowserWindow.fromId(options.targetWindowId)
         : null;
       if (targetWindow && !targetWindow.isDestroyed()) {
+        if (targetWindow.isMinimized()) {
+          targetWindow.restore();
+        }
+        targetWindow.setSkipTaskbar(false);
         targetWindow.show();
         targetWindow.focus();
         return;
@@ -1803,7 +1814,7 @@ export class InterpreterOverlayService {
     captureContextForScope: async (options) => await this.captureContextForScope(options),
     buildOverlayWholeComputerState: async (input) => await this.buildOverlayWholeComputerState(input),
     ensureExecutableContextForTarget: async (targetContext) =>
-      await this.ensureExecutableContextForTarget(targetContext),
+      await this.ensureExecutableContextForTarget(targetContext, { presentSelection: true }),
     createAgentToolSession: async (options) => await this.createAgentToolSession(options),
     resolveOverlayTargetWindow: async (workspacePath, targetWindowSessionKey) =>
       await this.resolveOverlayTargetWindow(workspacePath, targetWindowSessionKey),
@@ -1823,6 +1834,8 @@ export class InterpreterOverlayService {
   private onboardingVoiceRuntimeActivated = false;
   private registeredHotkey: string | null = null;
   private inputOpeningInFlight = false;
+  private overlaySubmitInFlight = false;
+  private suppressDesktopAgentDashboard = false;
   private settingsListenerCleanup: (() => void) | null = null;
   private authListenerCleanup: (() => void) | null = null;
   private currentSettings: InterpreterOverlaySettings = { ...DEFAULT_INTERPRETER_OVERLAY_SETTINGS };
@@ -2161,8 +2174,7 @@ export class InterpreterOverlayService {
   }
 
   revealAgentFromTray(agentId: string): void {
-    agentTabManager.requestAgentWindowReveal(agentId);
-    this.refreshAgentDashboardState();
+    this.revealOverlayAgentWindow(agentId);
   }
 
   stopAgentFromTray(agentId: string): void {
@@ -3110,6 +3122,9 @@ export class InterpreterOverlayService {
   }
 
   private async loadSelectionElementsForTargetBounds(display: DisplayInfo, absoluteBounds: Bounds): Promise<void> {
+    if (this.suppressDesktopAgentDashboard) {
+      return;
+    }
     const requestId = ++this.selectionRequestId;
     if (!overlaySupportsAccessibilityContext()) {
       this.selectionElements = [];
@@ -3142,13 +3157,14 @@ export class InterpreterOverlayService {
 
       if (
         requestId !== this.selectionRequestId
+        || this.suppressDesktopAgentDashboard
         || !this.interactionDisplay
         || this.interactionDisplay.id !== display.id
-        // 'working' stays eligible: a submit can flip the overlay to working
-        // while the initial target hydration is still in flight, and the run
-        // startup awaits that same hydration result. Advanced voice stays
-        // eligible too: a live voice session keeps mode 'idle', and its
-        // hydration and voice-time context rereads must still commit refs.
+        // Typed submit dismisses the overlay immediately. Do not keep painting
+        // AX/CUA spark frames after that, even if mode is still 'working'.
+        // Advanced voice stays eligible: a live voice session keeps mode
+        // 'idle', and its hydration and voice-time context rereads must still
+        // commit refs.
         || (this.overlayState.mode !== 'input' && this.overlayState.mode !== 'working' && this.overlayState.advancedVoiceActive !== true)
         || !boundsApproximatelyEqual(this.scopeBounds, absoluteBounds)
       ) {
@@ -3182,6 +3198,7 @@ export class InterpreterOverlayService {
       }
       if (
         requestId !== this.selectionRequestId
+        || this.suppressDesktopAgentDashboard
         || !this.interactionDisplay
         || this.interactionDisplay.id !== display.id
         || (this.overlayState.mode !== 'input' && this.overlayState.mode !== 'working' && this.overlayState.advancedVoiceActive !== true)
@@ -3236,6 +3253,7 @@ export class InterpreterOverlayService {
       }
       if (
         requestId !== this.selectionRequestId
+        || this.suppressDesktopAgentDashboard
         || !this.interactionDisplay
         || this.interactionDisplay.id !== display.id
         || (this.overlayState.mode !== 'input' && this.overlayState.mode !== 'working' && this.overlayState.advancedVoiceActive !== true)
@@ -3355,7 +3373,13 @@ export class InterpreterOverlayService {
 
   private async ensureExecutableContextForTarget(
     targetContext: OverlayRegionContextItem,
+    options?: { presentSelection?: boolean },
   ): Promise<OverlayRegionContextItem> {
+    const presentSelection = options?.presentSelection !== false;
+    if (!presentSelection || this.suppressDesktopAgentDashboard) {
+      return this.getCurrentTargetContextForBounds(targetContext.bounds) ?? targetContext;
+    }
+
     const display = this.getDisplayForTargetContext(targetContext);
     this.interactionDisplay = display;
     this.scopeBounds = targetContext.bounds;
@@ -3369,7 +3393,13 @@ export class InterpreterOverlayService {
     await this.loadSelectionElementsForTargetBounds(display, targetContext.bounds);
     currentTargetContext = this.getCurrentTargetContextForBounds(targetContext.bounds) ?? targetContext;
     if (!hasExecutableTargetRefs(currentTargetContext)) {
-      throw new Error('Overlay target context did not produce executable browser or native CUA refs for the selected scope.');
+      // Inspect policy can be ask/deny, or native/browser refs can be empty.
+      // Typed submit still launches a workstation agent with the selected
+      // scope as prompt context. Do not abort the send.
+      console.warn('[InterpreterOverlay] Selected scope has no executable browser or native CUA refs; launching without attached-target control.', {
+        scopeKind: currentTargetContext.scopeKind,
+        label: currentTargetContext.label,
+      });
     }
     return currentTargetContext;
   }
@@ -3528,6 +3558,9 @@ export class InterpreterOverlayService {
   }
 
   private overlayShouldBeVisuallyPresent(): boolean {
+    if (this.suppressDesktopAgentDashboard) {
+      return false;
+    }
     return this.overlayState.mode !== 'idle';
   }
 
@@ -4652,8 +4685,9 @@ export class InterpreterOverlayService {
       elementCount: session.initialContext.elementCount,
       initialScreenshotPath: session.initialContext.screenshotPath?.trim() || null,
     });
+    const screenContext = session.initialContext.formattedText.trim();
     return appendOverlayPromptExtras(basePrompt, {
-      systemAddendum,
+      systemAddendum: [systemAddendum, screenContext].filter(Boolean).join('\n\n') || null,
       customInstructions: await getCustomInstructions(),
     });
   }
@@ -4677,14 +4711,9 @@ export class InterpreterOverlayService {
         (mention): mention is string => Boolean(mention),
       ),
     );
-    const userRequest = `<user_request>
+    return `<user_request>
 ${promptBody}
 </user_request>`;
-    const contextText = initialContext.formattedText.trim();
-    if (!contextText) {
-      return userRequest;
-    }
-    return `${contextText}\n\n${userRequest}`;
   }
 
   private buildOverlayScreenshotFileMention(
@@ -4742,7 +4771,7 @@ ${promptBody}
     contextItems: OverlayContextItem[],
   ): OverlayUserAttachment[] {
     const regionImageAttachments = contextItems.flatMap((item): OverlayUserAttachment[] => {
-      if (item.kind === 'region' && item.role === 'reference' && item.previewImageDataUrl) {
+      if (item.kind === 'region' && item.previewImageDataUrl) {
         return [{
           id: `${item.id}-image`,
           kind: 'image',
@@ -5058,6 +5087,110 @@ ${promptBody}
     await fs.mkdir(OVERLAY_CONTEXT_TMP_DIR, { recursive: true });
     await fs.writeFile(filePath, Buffer.from(base64, 'base64'));
     return filePath;
+  }
+
+  private async captureOverlayScreenshotAttachment(
+    targetContext: OverlayRegionContextItem | null,
+  ): Promise<StreamImageAttachment | null> {
+    if (targetContext?.previewImageDataUrl) {
+      return {
+        id: `${targetContext.id}-image`,
+        kind: 'image',
+        name: targetContext.label || 'Target region',
+        mimeType: 'image/png',
+        dataUrl: targetContext.previewImageDataUrl,
+      };
+    }
+
+    if (!this.capture) {
+      return null;
+    }
+
+    try {
+      const display = targetContext?.displayId == null
+        ? this.interactionDisplay ?? this.capture.getActiveDisplay()
+        : this.capture.getDisplayById(String(targetContext.displayId));
+      const captureBounds = getDisplayViewport(
+        display,
+        targetContext?.bounds ?? this.scopeBounds ?? null,
+      );
+      const { base64 } = await this.capture.captureDisplay(
+        display,
+        captureBounds ?? undefined,
+      );
+      return createOverlayScreenshotStreamAttachment({
+        name: targetContext?.label || 'Target region',
+        base64,
+      });
+    } catch (error) {
+      console.warn('[InterpreterOverlay] Screenshot attachment unavailable for headed launch', {
+        error: getErrorMessage(error),
+      });
+      return null;
+    }
+  }
+
+  private focusOverlayTargetWorkstationWindow(targetWindowId: number | null): void {
+    const targetWindow = targetWindowId
+      ? BrowserWindow.fromId(targetWindowId)
+      : null;
+    if (targetWindow && !targetWindow.isDestroyed()) {
+      if (targetWindow.isMinimized()) {
+        targetWindow.restore();
+      }
+      targetWindow.setSkipTaskbar(false);
+      targetWindow.show();
+      targetWindow.focus();
+      return;
+    }
+
+    this.showMainWindow();
+  }
+
+  private revealOverlayAgentWindow(agentId: string): void {
+    this.suppressDesktopAgentDashboard = true;
+    this.overlay.hide();
+    try {
+      const binding = agentTabManager.requestAgentWindowReveal(agentId);
+      const session = binding.windowSessionKey
+        ? getWindowSessionByKey(binding.windowSessionKey)
+        : null;
+      this.focusOverlayTargetWorkstationWindow(session?.windowId ?? null);
+    } catch (error) {
+      console.warn('[InterpreterOverlay] Failed to reveal agent window', {
+        agentId,
+        error: getErrorMessage(error),
+      });
+      this.showMainWindow();
+    }
+    this.refreshAgentDashboardState();
+  }
+
+  private dismissOverlaySelectionForHeadedWorkspaceLaunch(): void {
+    this.clearWorldOverlayCloseTimer();
+    this.overlay.setWorldTargetMovedListener(null);
+    this.overlay.unpinWorld();
+    this.pinnedTarget = null;
+    this.worldTargetBounds = null;
+    this.resetOverlaySelectionState();
+    this.scopeSelectionInProgress = false;
+    this.send({
+      scopeBounds: null,
+      draftScopeBounds: null,
+      selectableElements: [],
+      contextItems: [],
+      targetContextId: null,
+      worldPinActive: false,
+      worldTargetBounds: null,
+      worldPinClosing: false,
+    });
+  }
+
+  private dismissOverlayPresentationAfterSubmit(): void {
+    this.suppressDesktopAgentDashboard = true;
+    this.dismissOverlaySelectionForHeadedWorkspaceLaunch();
+    this.send({ ...DEFAULT_OVERLAY_STATE });
+    this.overlay.hide();
   }
 
   private getSessionDisplay(session: OverlaySessionRecord): DisplayInfo {
@@ -5542,15 +5675,9 @@ ${promptBody}
       this.accessState,
       this.benchmarkMode,
     );
-    if (this.effectiveSettings.enabled && !this.baseUrl) {
-      console.warn(
-        '[InterpreterOverlay] Disabled because this distribution does not configure an overlay server',
-      );
-      this.effectiveSettings = {
-        ...this.effectiveSettings,
-        enabled: false,
-      };
-    }
+    // Community and other non-hosted distributions have no overlay server URL.
+    // Typed overlay still runs locally through the text-controller, CUA, and
+    // workstation tools. Do not force-disable the runtime or the hotkey.
 
     console.log('[InterpreterOverlay] applySettings', {
       configuredEnabled: this.currentSettings.enabled,
@@ -5560,6 +5687,7 @@ ${promptBody}
       accessAllowed: this.accessState.allowed,
       accessReason: this.accessState.reason,
       hotkey: this.effectiveSettings.hotkey,
+      hasHostedOverlayServer: Boolean(this.baseUrl),
     });
 
     if (this.effectiveSettings.enabled) {
@@ -6076,6 +6204,7 @@ ${promptBody}
       return;
     }
 
+    console.log(`[InterpreterOverlay] Registered ${nextHotkey}`);
     this.registeredHotkey = nextHotkey;
     this.emitTrayStateChanged();
   }
@@ -6197,11 +6326,15 @@ ${promptBody}
           worldTargetBounds: previousState.worldTargetBounds,
           worldPinClosing: false,
         };
-      } else if (this.activeAttachedSessionId !== null || this.runStartedAt !== null) {
+      } else if (
+        !this.suppressDesktopAgentDashboard
+        && (this.activeAttachedSessionId !== null || this.runStartedAt !== null)
+      ) {
         // A just-submitted run passes through a transient idle while the
         // input presentation closes, before its attached tool session exists.
         // Dropping the world pin and scope here is what killed the thinking
-        // sheen: keep them alive whenever a run is in flight.
+        // sheen: keep them alive whenever a run is in flight. Typed submit
+        // dismisses chrome first and must not resurrect AX spark frames.
         nextState = {
           ...nextState,
           scopeBounds: previousState.scopeBounds,
@@ -6309,6 +6442,7 @@ ${promptBody}
     const renderedStateSignature = JSON.stringify(renderedState);
     const isInputMode = renderedState.mode === 'input';
     const hasAgentDashboard = renderedState.runningAgents.length > 0 || renderedState.dashboardApprovals.length > 0;
+    const showDesktopDashboard = hasAgentDashboard && !this.suppressDesktopAgentDashboard;
     console.log('[InterpreterOverlay] send', {
       mode: this.overlayState.mode,
       visualMode: renderedState.mode,
@@ -6346,10 +6480,12 @@ ${promptBody}
 
     this.syncProgressiveBlurVisibility();
 
-    if (renderedState.mode !== 'idle' || hasAgentDashboard) {
+    if (this.suppressDesktopAgentDashboard) {
+      this.overlay.hide();
+    } else if (renderedState.mode !== 'idle' || showDesktopDashboard) {
       this.showOverlayOnInteractionDisplay();
     }
-    if (!isInputMode && hasAgentDashboard) {
+    if (!isInputMode && showDesktopDashboard) {
       this.overlay.setFocusable(true);
     }
 
@@ -6514,6 +6650,7 @@ ${promptBody}
 
     this.inputOpeningInFlight = true;
     try {
+      this.suppressDesktopAgentDashboard = false;
       this.clearProgressiveBlurCloseTimer();
       this.clearWorldOverlayCloseTimer();
       this.progressiveBlurClosePending = false;
@@ -7655,8 +7792,7 @@ ${promptBody}
         break;
 
       case 'reveal-agent-window':
-        agentTabManager.requestAgentWindowReveal(action.agentId);
-        this.refreshAgentDashboardState();
+        this.revealOverlayAgentWindow(action.agentId);
         break;
 
       case 'stop-agent-window':
@@ -7689,7 +7825,13 @@ ${promptBody}
         this.noteOverlayVisualHealth(action.health);
         break;
 
-      case 'submit':
+      case 'submit': {
+        if (this.overlaySubmitInFlight) {
+          console.warn('[InterpreterOverlay] Ignoring overlapping submit', {
+            textLength: action.text.trim().length,
+          });
+          break;
+        }
         if (this.overlayState.mode !== 'input') {
           console.warn('[InterpreterOverlay] Ignoring submit outside input mode', {
             mode: this.overlayState.mode,
@@ -7697,6 +7839,8 @@ ${promptBody}
           });
           break;
         }
+        this.overlaySubmitInFlight = true;
+        try {
 
         this.cancelVoiceTimer();
         if (this.isVoiceInputActive) {
@@ -7705,19 +7849,22 @@ ${promptBody}
           this.isVoiceInputActive = false;
         }
 
-        const hasControllableTargetContext = this.overlayState.contextItems.some((item) => (
-          item.kind === 'region' && item.role === 'target'
-        ));
+        this.notePresentationCloseRequested('submit');
+        const serviceContextSnapshot = [...this.overlayState.contextItems];
+        const submittedContextSnapshot = action.contextItems ?? serviceContextSnapshot;
+        this.dismissOverlayPresentationAfterSubmit();
+        this.resetOverlayInputTracking();
+
         await this.waitForPendingHotkeyContext('submit', {
-          awaitTargetHydration: hasControllableTargetContext,
+          awaitTargetHydration: false,
         });
         const systemAddendum = this.nextRunSystemAddendum;
         this.nextRunSystemAddendum = null;
         const inputMethod: OverlayRunInputMethod = this.voiceInputUsed ? 'voice' : 'text';
-        let textControllerRequest = buildOverlayTextControllerRequest({
+        const textControllerRequest = buildOverlayTextControllerRequest({
           text: action.text,
-          serviceContextItems: this.overlayState.contextItems,
-          submittedContextItems: action.contextItems,
+          serviceContextItems: serviceContextSnapshot,
+          submittedContextItems: submittedContextSnapshot,
           attachments: action.attachments,
           workspacePath: action.workspacePath,
           targetWindowSessionKey: action.targetWindowSessionKey,
@@ -7727,18 +7874,8 @@ ${promptBody}
           managedContext: this.overlayTextManagedContext,
         });
         if (textControllerRequest.targetContext) {
-          await this.ensureExecutableContextForTarget(textControllerRequest.targetContext);
-          textControllerRequest = buildOverlayTextControllerRequest({
-            text: action.text,
-            serviceContextItems: this.overlayState.contextItems,
-            submittedContextItems: action.contextItems,
-            attachments: action.attachments,
-            workspacePath: action.workspacePath,
-            targetWindowSessionKey: action.targetWindowSessionKey,
-            profileId: action.profileId,
-            renderedProfileId: null,
-            inputMethod,
-            managedContext: this.overlayTextManagedContext,
+          await this.ensureExecutableContextForTarget(textControllerRequest.targetContext, {
+            presentSelection: false,
           });
         }
         const trimmedText = textControllerRequest.text;
@@ -7908,46 +8045,55 @@ ${promptBody}
         this.lastWorkspaceAgentLaunch = null;
         this.beginDebugRun();
 
-        await this.beginPinningWorldOverlayToTarget();
-        this.notePresentationCloseRequested('submit');
-        this.send({
-          mode: 'working',
-          action: null,
-          ghosts: [],
-          pill: { kind: 'loading' },
-          screenshot: null,
-          transcript: '',
-          isRecording: false,
-          amplitude: 0,
-          ctrlPressed: false,
-          shiftPressed: false,
-        });
-        this.resetOverlayInputTracking();
-
         try {
           const agentId = createOverlayAgentId();
           const callerToken = createOverlayCallerToken();
           const selectedProfile = await this.resolveOverlayAgentProfile(effectiveProfileId);
           const imageMentions = await this.persistOverlayUserAttachmentMentions(normalAgentUserAttachments);
+          const canControlSelectedTarget = Boolean(
+            targetContext && hasExecutableTargetRefs(targetContext),
+          );
           const targetWindow = await this.resolveOverlayTargetWindow(
             action.workspacePath,
             action.targetWindowSessionKey,
-            { background: !targetContext },
+            { background: !canControlSelectedTarget },
           );
 
-          if (!targetContext) {
+          if (!canControlSelectedTarget) {
+            const launchParts = buildOverlayHeadedAgentLaunchParts(textControllerRequest, {
+              wholeComputerState,
+              includeAvailableTools: false,
+            });
+            const existingImageAttachments = toOverlayStreamImageAttachments(normalAgentUserAttachments);
+            const screenshotAttachment = existingImageAttachments.length > 0
+              ? null
+              : await this.captureOverlayScreenshotAttachment(targetContext);
+            const startupAttachments = [
+              ...(screenshotAttachment ? [screenshotAttachment] : []),
+              ...existingImageAttachments,
+            ];
+            this.suppressDesktopAgentDashboard = true;
+            this.dismissOverlaySelectionForHeadedWorkspaceLaunch();
             await startAgentTask({
               agentId,
               callerToken,
               mode: 'headed',
-              message: prependOverlayMentions(effectivePrompt, imageMentions),
+              message: launchParts.userMessage,
+              system: appendOverlayPromptExtras(
+                'You are answering a request started from Interpreter Overlay. The user-visible message is only their request. Use any overlay_* XML below as hidden working context. Do not quote that XML back to the user.',
+                {
+                  systemAddendum: launchParts.systemContext,
+                  customInstructions,
+                },
+              ),
               modelConfig: profileToModelConfig(selectedProfile, {
                 reasoningEffort: selectedProfile.reasoningEffort,
               }),
               workspace: targetWindow.workspacePath ?? undefined,
-              activate: false,
+              activate: true,
               targetWindowSessionKey: targetWindow.targetWindowSessionKey,
               toolProfileId: selectedProfile.id,
+              ...(startupAttachments.length > 0 ? { startupAttachments } : {}),
             });
             this.overlayTextManagedContext = recordOverlayTextControllerAgentLaunchResult({
               managedContext: textControllerRequest.managedContext,
@@ -7969,7 +8115,7 @@ ${promptBody}
                 targetWindowSessionKey: targetWindow.targetWindowSessionKey,
                 allowedToolCount: 0,
                 initialElementCount: null,
-                activate: false,
+                activate: true,
                 resultText: 'Started visible Interpreter agent.',
               })],
               now: Date.now(),
@@ -7978,6 +8124,20 @@ ${promptBody}
             this.lastRunInputMethod = null;
             this.finishDebugRun('completed', '', 'background_agent_started');
             this.send({ ...DEFAULT_OVERLAY_STATE });
+            this.overlay.hide();
+            this.focusOverlayTargetWorkstationWindow(targetWindow.targetWindowId);
+            showOverlayAgentNotification({
+              body: buildProgrammaticRunNotificationBody(
+                trimmedText || 'Interpreter Overlay request',
+              ),
+              targetWindowId: targetWindow.targetWindowId,
+              showMainWindow: this.showMainWindow,
+              hideOverlay: () => this.overlay.hide(),
+            });
+            break;
+          }
+
+          if (!targetContext) {
             break;
           }
 
@@ -8024,6 +8184,9 @@ ${promptBody}
             ].join('\n\n');
           }
 
+          this.interactionDisplay = this.getDisplayForTargetContext(targetContext);
+          this.scopeBounds = { ...targetContext.bounds };
+          await this.beginPinningWorldOverlayToTarget();
           const session = await this.createAgentToolSession({
             agentId,
             callerToken,
@@ -8037,12 +8200,15 @@ ${promptBody}
             callerToken,
             mode: 'headed',
             message: this.buildOverlayLaunchMessage(
-              agentLaunchPrompt,
+              trimmedText,
               session.initialContext,
               targetContext,
               imageMentions,
             ),
-            system: await this.buildOverlaySystemPrompt(session, systemAddendum),
+            system: await this.buildOverlaySystemPrompt(session, [
+              systemAddendum,
+              agentLaunchPrompt === effectivePrompt ? null : agentLaunchPrompt,
+            ].filter(Boolean).join('\n\n') || null),
             modelConfig: profileToModelConfig(selectedProfile, {
               reasoningEffort: selectedProfile.reasoningEffort,
             }),
@@ -8108,6 +8274,7 @@ ${promptBody}
             ),
             targetWindowId: targetWindow.targetWindowId,
             showMainWindow: this.showMainWindow,
+            hideOverlay: () => this.overlay.hide(),
           });
         } catch (error) {
           const message = getErrorMessage(error);
@@ -8147,7 +8314,19 @@ ${promptBody}
             pill: { kind: 'error', message },
           });
         }
+        } catch (error) {
+          const message = getErrorMessage(error);
+          console.error('[InterpreterOverlay] submit failed:', error);
+          this.trackOverlayError('overlay_submit_failed', message, {});
+          await this.showInputMode(false);
+          this.send({
+            pill: { kind: 'error', message },
+          });
+        } finally {
+          this.overlaySubmitInFlight = false;
+        }
         break;
+      }
     }
   };
 

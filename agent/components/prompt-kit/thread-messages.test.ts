@@ -69,6 +69,25 @@ describe('thread message mention rendering', () => {
     assert.match(html, /hover:opacity-80/);
   });
 
+  test('renders overlay image attachments as a preview instead of a text chip', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(UserMessageBubble, {
+        content: '这个是咕',
+        attachments: [{
+          id: 'overlay-screenshot-1',
+          kind: 'image',
+          name: 'Target region',
+          dataUrl: 'data:image/png;base64,AAAA',
+        }],
+      }),
+    );
+
+    assert.match(html, /data-attachment-kind="image"/);
+    assert.match(html, /src="data:image\/png;base64,AAAA"/);
+    assert.match(html, /alt="Target region"/);
+    assert.doesNotMatch(html, /data-attachment-kind="pasted-text"/);
+  });
+
   test('renders compact plain text in pinned user message headers', () => {
     const html = renderToStaticMarkup(
       React.createElement(UserMessageBubble, {
