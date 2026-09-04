@@ -1,6 +1,6 @@
 ---
 name: browser-control
-description: Use this skill when the user needs advanced Playwright control of an already running browser session through Interpreter's app-managed browser bridge and the `builtin-js-repl` `js_repl` tool, after simple browser page work cannot be handled by the unified `builtin-interpreter` browser page tools.
+description: Use this skill when the user asks what is on the current browser page, to read, inspect, describe, click, type, or otherwise control an already-connected Chrome tab. Start with the unified `builtin-interpreter` page tools. Use `js_repl` only for advanced Playwright work those tools cannot express.
 metadata:
   short-description: Advanced live-browser Playwright control
 ---

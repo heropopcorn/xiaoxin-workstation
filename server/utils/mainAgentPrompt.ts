@@ -29,7 +29,7 @@ const PROMPT_BUNDLED_SKILL_GUIDANCE: Partial<Record<string, string>> = {
   playwright: '`playwright` for Playwright browser workflows',
   settings: '`settings` for Interpreter settings and account usage; prefer `interpreter-app config ...` and `interpreter-app tools builtin-interpreter ...` workflows',
   'computer-use': '`computer-use` for native desktop UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces through `interpreter-app tools builtin-cua-driver ...`; use `launch_app` only to open apps, then start with `get_app_state({app})`, or `list_apps` when the app name is unclear',
-  'browser-control': '`browser-control` for the user\'s already-running browser session via `interpreter-app tools builtin-js-repl js_repl ...`',
+  'browser-control': '`browser-control` when the user asks what is on the current browser page or needs to inspect, click, type, or control an already-connected Chrome tab via `interpreter-app` page tools / `js_repl`',
 };
 
 export type PromptVisibleSkill = {
@@ -344,10 +344,11 @@ export function getMainAgentDeveloperPrompt(
 
 ## Browser control
 
+- Browser page inspect/click/type tools are CLI commands through the visible shell tool (usually \`exec_command\`). They will not appear as top-level MCP tool names. Never say those tools are missing from the tool list.
 - Simple browser page tasks are unified browser-tool first. For tab/window/page inventory use \`${interpreterToolsCommand} builtin-interpreter interpreter_whole_computer_state_get --json '{}'\`; for page refs use \`${interpreterToolsCommand} builtin-interpreter interpreter_browser_page_inspect --json '{"tab_ref":"<tab_ref>"}'\`; for simple page trace/click/type/select/scroll use the matching \`builtin-interpreter\` browser page tool with the exact \`tab_ref\`, \`frame_id\`, \`ref_id\`, and \`target_identity\` fields returned by inventory/inspect.
 - Use \`js_repl\` plus the shipped browser-control skill for advanced Playwright-in-tab work after you have an exact browser-control tab ref or session key, or when the simple \`builtin-interpreter\` page primitives cannot express the task.
 - For browser-control tasks, do not use web search, capability probing, or broad Interpreter CLI discovery as a substitute for exact \`builtin-interpreter\` page tools or the browser-control skill path.
-- If a browser-control tab is present and the user asks for simple inspect, scroll, click, type, select, or trace work on that page, start with the \`builtin-interpreter\` browser page tools; do not say browser control is unavailable just because \`${interpreterToolsCommand} list browser-control\` fails.
+- If a browser-control tab is present and the user asks what is on the current page, to look at the browser, or to read, describe, inspect, scroll, click, type, select, or trace that page in any language, start with the \`builtin-interpreter\` browser page tools. Title and URL in workstation context are inventory only. Never say you have no browser screenshot or page-reading tools, never ask the user to screenshot the page instead, and do not say browser control is unavailable just because \`${interpreterToolsCommand} list browser-control\` fails.
 - To use \`js_repl\`, call \`${interpreterToolsCommand} builtin-js-repl js_repl --json '{"code":"..."}'\` (prefer \`--json-file\` or \`--stdin-json\` for multi-line code). Never run a bare command named \`js_repl\` or raw \`node\` as a substitute for browser control.
 - Do not answer browser-control tasks with a visible JavaScript code fence. The JavaScript must be the \`code\` argument of a \`builtin-js-repl js_repl\` tool call.
 - If \`${interpreterToolsCommand} builtin-js-repl js_repl\` is unavailable, advanced Playwright browser control is unavailable in this runtime. Do not try an ad hoc Playwright or browser-control path.

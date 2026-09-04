@@ -16,6 +16,7 @@ import { formatLocalModelToolUseError, resolveLocalModelToolUseSupport, getOllam
 import { requiresFreshThread } from './codexThreadRecovery';
 import { appendCustomInstructionsToPrompt } from './customInstructions';
 import { getCodexService } from './codexSkillsBridge';
+import { assistBrowserPageReadTurn } from './browserPageReadAssist';
 import {
   getMainAgentBaseInstructions,
   getMainAgentDeveloperPrompt,
@@ -2086,6 +2087,7 @@ export async function runCodexAgentTurn(
     'turn context',
     options.service,
   );
+  const assistedMessage = await assistBrowserPageReadTurn(options.message);
   const developerInstructions = await buildCodexDeveloperInstructions({
     modelId: resolvedModel,
     interpreterCliAvailable: true,
@@ -2111,7 +2113,7 @@ export async function runCodexAgentTurn(
 
   try {
     let threadId = options.threadId;
-    let nextMessage = options.message;
+    let nextMessage = assistedMessage;
     let nextAttachments = options.attachments;
     let nextSkills = options.skills;
     let continuationAttempt = 0;

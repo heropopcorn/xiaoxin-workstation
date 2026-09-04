@@ -162,11 +162,14 @@ describe('mainAgentPrompt', () => {
     expect(unixPrompt).toContain('Do not claim sandboxing blocks computer use unless `builtin-cua-driver` itself reports a sandbox error.');
     expect(unixPrompt).not.toContain('Windows administrator rights are separate from Interpreter sandbox access.');
     expect(unixPrompt).toContain('Prefer unified `builtin-interpreter` browser page tools for simple webpage content when the tab is available through the Chrome extension, and use browser-control/`js_repl` for advanced Playwright-in-tab work.');
+    expect(unixPrompt).toContain('`browser-control` when the user asks what is on the current browser page');
+    expect(unixPrompt).toContain('They will not appear as top-level MCP tool names. Never say those tools are missing from the tool list.');
     expect(unixPrompt).toContain('Simple browser page tasks are unified browser-tool first.');
     expect(unixPrompt).toContain('interpreter-app tools builtin-interpreter interpreter_whole_computer_state_get --json');
     expect(unixPrompt).toContain('interpreter-app tools builtin-interpreter interpreter_browser_page_inspect --json');
     expect(unixPrompt).toContain('Use `js_repl` plus the shipped browser-control skill for advanced Playwright-in-tab work after you have an exact browser-control tab ref or session key');
-    expect(unixPrompt).toContain('If a browser-control tab is present and the user asks for simple inspect, scroll, click, type, select, or trace work on that page, start with the `builtin-interpreter` browser page tools');
+    expect(unixPrompt).toContain('If a browser-control tab is present and the user asks what is on the current page, to look at the browser, or to read, describe, inspect, scroll, click, type, select, or trace that page in any language, start with the `builtin-interpreter` browser page tools');
+    expect(unixPrompt).toContain('Never say you have no browser screenshot or page-reading tools');
     expect(unixPrompt).toContain('do not say browser control is unavailable just because `interpreter-app tools list browser-control` fails.');
     expect(unixPrompt).toContain('Use browser-control tabs from the Chrome extension as live browser state.');
     expect(unixPrompt).not.toContain('shared browser tab');

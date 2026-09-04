@@ -63,7 +63,20 @@ function formatTabs(tabs: WorkstationContext['tabs']): string[] {
 
   const browserLines = tabs.browsers.map(formatBrowserTab);
   if (browserLines.length > 0) {
-    lines.push(`Browser-Control Tabs:\n${browserLines.join('\n')}`);
+    const activeTab = tabs.browsers.find((tab) => tab.isActive) ?? tabs.browsers[0];
+    const inspectJson = JSON.stringify({ tab_ref: activeTab.browserId });
+    lines.push(
+      [
+        'Browser-Control Tabs:',
+        ...browserLines,
+        'These title/URL rows are inventory only. They are not page content.',
+        'Browser page reading is a shell/CLI workflow through the visible shell tool (usually `exec_command`), not a missing top-level MCP tool.',
+        'If the user asks what is on a browser page, immediately run one of these commands and answer from the inspect result:',
+        `cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-interpreter interpreter_browser_page_inspect --json '${inspectJson}'`,
+        `interpreter-app tools builtin-interpreter interpreter_browser_page_inspect --json '${inspectJson}'`,
+        'Do not answer from this list alone, and do not say browser reading tools are unavailable.',
+      ].join('\n'),
+    );
   }
 
   return lines;
@@ -81,7 +94,7 @@ function formatBrowserTab(tab: WorkstationContext['tabs']['browsers'][number]): 
   const title = tab.title || tab.url || 'Untitled';
   const url = tab.url ? ` (${tab.url})` : '';
   const activeMarker = tab.isActive ? ' [active]' : '';
-  return `  - ${title}${url} [tab_id: ${tab.browserId}]${activeMarker}`;
+  return `  - ${title}${url} [tab_ref: ${tab.browserId}]${activeMarker}`;
 }
 
 /**

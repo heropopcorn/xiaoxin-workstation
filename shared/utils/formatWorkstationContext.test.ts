@@ -61,8 +61,12 @@ describe('formatWorkstationContext', () => {
     const result = formatWorkstationContext(ctx);
     expect(result).toContain('Browser-Control Tabs:');
     expect(result).not.toContain('Shared Browser Tabs:');
-    expect(result).toContain('- Google (https://google.com) [tab_id: b1] [active]');
-    expect(result).toContain('- GitHub (https://github.com) [tab_id: b2]');
+    expect(result).toContain('- Google (https://google.com) [tab_ref: b1] [active]');
+    expect(result).toContain('- GitHub (https://github.com) [tab_ref: b2]');
+    expect(result).toContain('These title/URL rows are inventory only.');
+    expect(result).toContain('Do not answer from this list alone');
+    expect(result).toContain('interpreter_browser_page_inspect --json \'{"tab_ref":"b1"}\'');
+    expect(result).toContain('not a missing top-level MCP tool');
   });
 
   test('email tabs are excluded from hidden workstation context', () => {
