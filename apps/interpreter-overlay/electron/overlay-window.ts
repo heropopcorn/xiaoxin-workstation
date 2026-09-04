@@ -230,6 +230,7 @@ export class OverlayWindow {
     if (window.isVisible() && alreadyCoversDisplay) {
       return;
     }
+    window.setAlwaysOnTop(true, 'screen-saver');
     window.setBounds(display.bounds);
     console.log('[OverlayWindow] showOnDisplay', {
       displayId: display.id,
@@ -288,7 +289,7 @@ export class OverlayWindow {
       return;
     }
 
-    if (process.platform === 'darwin' || process.platform === 'win32') {
+    if (process.platform === 'darwin') {
       const display = this.currentDisplay ?? screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
       this.win.setBounds(display.bounds);
       this.win.setIgnoreMouseEvents(true, { forward: true });
@@ -300,6 +301,16 @@ export class OverlayWindow {
       return;
     }
 
+    // Windows (and Linux): never leave a fullscreen, always-on-top, zero-opacity
+    // window sitting over the desktop. Electron's `{ forward: true }` click-through
+    // is unreliable on Windows and will eat clicks in other apps.
+    this.win.setIgnoreMouseEvents(true);
+    this.win.setFocusable(false);
+    this.win.setAlwaysOnTop(false);
+    this.win.setOpacity(0);
+    if (process.platform === 'win32') {
+      this.win.setBounds({ x: -20000, y: -20000, width: 1, height: 1 });
+    }
     this.win.hide();
   }
 

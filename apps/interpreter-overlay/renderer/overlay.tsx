@@ -1240,10 +1240,10 @@ export function Overlay() {
     return window.overlay.onState((nextState) => {
       if (nextState.scopeBounds) {
         setScopeDragPreview(scopeDragPreviewRef.current, null, nextState.tracePrimaryColor);
-        dragGestureRef.current = null;
-        scopeEditorGestureRef.current = null;
-        setScopeInteractionMode(null);
-        setDraftScopeBounds(null);
+        if (!scopeEditorGestureRef.current && !dragGestureRef.current) {
+          setScopeInteractionMode(null);
+          setDraftScopeBounds(null);
+        }
       }
       const currentState = stateRef.current;
       if (equalOverlayState(currentState, nextState)) {
@@ -1972,10 +1972,14 @@ export function Overlay() {
   }, [showInput, tracePrimaryColor]);
 
   useEffect(() => {
-    if (!showInput || !scopeEditorGestureRef.current) {
+    if (!showInput) {
       return;
     }
 
+    // Attach for the whole input session. The gesture lives in a ref, so an
+    // early return on `scopeEditorGestureRef.current` would only run when the
+    // overlay first opens (when the ref is still null) and never see resize
+    // or move pointerdowns that happen later.
     const handlePointerMove = (event: PointerEvent) => {
       const gesture = scopeEditorGestureRef.current;
       if (!gesture || gesture.pointerId !== event.pointerId) {
@@ -2010,7 +2014,7 @@ export function Overlay() {
       }
       scopeEditorGestureRef.current = null;
       setScopeInteractionMode(null);
-      setDraftScopeBounds(null);
+      setDraftScopeBounds(nextBounds);
       send({ type: 'region-selected', bounds: nextBounds, role: state.activeRegionRole });
       if (restoreBlur) {
         send({ type: 'scope-selection-ended' });
@@ -2292,7 +2296,7 @@ export function Overlay() {
 
   const beginScopeInteraction = (mode: 'create' | 'move' | 'resize') => {
     setScopeInteractionMode(mode);
-    send({ type: 'scope-selection-started' });
+    send({ type: 'scope-selection-started', mode });
   };
 
   const endScopeInteraction = () => {
@@ -2435,13 +2439,15 @@ export function Overlay() {
     );
     clearBackgroundGesture(event);
     setScopeDragPreview(scopeDragPreviewRef.current, null, tracePrimaryColor);
-    setDraftScopeBounds(null);
 
     if (hasMeaningfulScope(completedBounds)) {
+      setDraftScopeBounds(completedBounds);
       send({ type: 'region-selected', bounds: completedBounds, role: state.activeRegionRole });
       endScopeInteraction();
       return;
     }
+
+    setDraftScopeBounds(null);
 
     send({ type: 'scope-draft-changed', bounds: null });
 
@@ -2471,18 +2477,19 @@ export function Overlay() {
   };
 
   const handleScopeMovePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!showInput || !state.scopeBounds || event.button !== 0) {
+    const startBounds = liveScopeBounds ?? state.scopeBounds;
+    if (!showInput || !startBounds || event.button !== 0) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    setDraftScopeBounds(state.scopeBounds);
+    setDraftScopeBounds(startBounds);
     scopeEditorGestureRef.current = {
       mode: 'move',
       pointerId: event.pointerId,
       startPointer: { x: event.clientX, y: event.clientY },
-      startBounds: state.scopeBounds,
+      startBounds,
       target: event.currentTarget,
     };
     beginScopeInteraction('move');
@@ -2490,19 +2497,20 @@ export function Overlay() {
   };
 
   const handleScopeResizePointerDown = (handle: ScopeResizeHandle) => (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!showInput || !state.scopeBounds || event.button !== 0) {
+    const startBounds = liveScopeBounds ?? state.scopeBounds;
+    if (!showInput || !startBounds || event.button !== 0) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
-    setDraftScopeBounds(state.scopeBounds);
+    setDraftScopeBounds(startBounds);
     scopeEditorGestureRef.current = {
       mode: 'resize',
       handle,
       pointerId: event.pointerId,
       startPointer: { x: event.clientX, y: event.clientY },
-      startBounds: state.scopeBounds,
+      startBounds,
       target: event.currentTarget,
     };
     beginScopeInteraction('resize');
@@ -3342,4 +3350,5 @@ export const __test__ = {
   resolvePreferredProfileId,
   getBottomPillAnchor,
   getExecutionPillProgress,
+  resizeScopeBounds,
 };

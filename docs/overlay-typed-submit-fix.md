@@ -1,5 +1,7 @@
 # Overlay 框选提问：问题记录与修复过程
 
+后续问题和复测索引：[docs/qa/README.md](./qa/README.md)。
+
 日期：2026-09-03  
 范围：Xiaoxin / Interpreter Overlay 在 Windows 上的本地 typed submit  
 仓库：`D:\project\xiaoxin-workstation`（`xiaoxin/main`）

@@ -297,7 +297,7 @@ export type OverlayAction =
   | { type: 'reject' }
   | { type: 'dismiss' }
   | { type: 'draft-changed'; text: string }
-  | { type: 'scope-selection-started' }
+  | { type: 'scope-selection-started'; mode?: 'create' | 'move' | 'resize' }
   | { type: 'scope-selection-ended' }
   | { type: 'scope-draft-changed'; bounds: Bounds | null }
   | { type: 'scope-selected'; bounds: Bounds }

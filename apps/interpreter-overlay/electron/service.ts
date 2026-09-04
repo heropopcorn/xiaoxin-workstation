@@ -770,6 +770,46 @@ export function boundsApproximatelyEqual(left: Bounds | null | undefined, right:
     && Math.abs(left.height - right.height) < 1;
 }
 
+function isPointInsideBounds(point: { x: number; y: number }, bounds: Bounds): boolean {
+  return point.x >= bounds.x
+    && point.x <= bounds.x + bounds.width
+    && point.y >= bounds.y
+    && point.y <= bounds.y + bounds.height;
+}
+
+/** Hit ring around an existing selection: resize handles and move-edge bands. */
+export function isPointOnScopeEditorChrome(
+  point: { x: number; y: number },
+  bounds: Bounds | null | undefined,
+): boolean {
+  if (!bounds) {
+    return false;
+  }
+
+  const handlePad = 14;
+  const band = Math.min(16, Math.max(10, Math.min(bounds.width, bounds.height) * 0.08));
+  const inset = Math.max(band, handlePad);
+  const outer: Bounds = {
+    x: bounds.x - handlePad,
+    y: bounds.y - handlePad,
+    width: bounds.width + handlePad * 2,
+    height: bounds.height + handlePad * 2,
+  };
+  const inner: Bounds = {
+    x: bounds.x + inset,
+    y: bounds.y + inset,
+    width: Math.max(0, bounds.width - inset * 2),
+    height: Math.max(0, bounds.height - inset * 2),
+  };
+  if (!isPointInsideBounds(point, outer)) {
+    return false;
+  }
+  if (inner.width <= 0 || inner.height <= 0) {
+    return true;
+  }
+  return !isPointInsideBounds(point, inner);
+}
+
 function trimInputContextPreviewText(value: string | null | undefined): string | null {
   if (typeof value !== 'string') {
     return null;
@@ -6480,9 +6520,9 @@ ${promptBody}
 
     this.syncProgressiveBlurVisibility();
 
-    if (this.suppressDesktopAgentDashboard) {
+    if (this.suppressDesktopAgentDashboard || (renderedState.mode === 'idle' && !showDesktopDashboard)) {
       this.overlay.hide();
-    } else if (renderedState.mode !== 'idle' || showDesktopDashboard) {
+    } else {
       this.showOverlayOnInteractionDisplay();
     }
     if (!isInputMode && showDesktopDashboard) {
@@ -7046,12 +7086,11 @@ ${promptBody}
       ...(health.profileOptionBounds ?? []).map((option) => option.bounds),
     ].filter((bounds): bounds is Bounds => Boolean(bounds));
 
-    return controlBounds.some((bounds) => (
-      localPoint.x >= bounds.x
-      && localPoint.x <= bounds.x + bounds.width
-      && localPoint.y >= bounds.y
-      && localPoint.y <= bounds.y + bounds.height
-    ));
+    if (controlBounds.some((bounds) => isPointInsideBounds(localPoint, bounds))) {
+      return true;
+    }
+
+    return isPointOnScopeEditorChrome(localPoint, this.overlayState.scopeBounds);
   }
 
   private getContextChipRemoveIdAtPoint(point: { x: number; y: number; coordinateSpace?: 'dip' | 'physical' }): string | null {
@@ -7209,6 +7248,7 @@ ${promptBody}
     ) {
       this.globalScopeGesture = null;
       this.clearGlobalScopeGestureTimeout();
+      this.sendDragPreview(null);
       return;
     }
 
@@ -7528,6 +7568,12 @@ ${promptBody}
 
       case 'scope-selection-started':
         this.cancelVoiceTimer();
+        if (action.mode === 'move' || action.mode === 'resize') {
+          this.globalScopeGesture = null;
+          this.clearGlobalScopeGestureTimeout();
+          this.releaseRegionDragCapture();
+          this.sendDragPreview(null);
+        }
         this.scopeSelectionInProgress = true;
         if (this.isVoiceInputActive) {
           this.trackVoiceCancelled('scope_selection');
@@ -7566,6 +7612,7 @@ ${promptBody}
         if (
           this.lastGlobalScopeSelectedAt !== null
           && Date.now() - this.lastGlobalScopeSelectedAt < 10000
+          && boundsApproximatelyEqual(action.bounds, this.lastGlobalScopeLocalBounds)
         ) {
           console.log('[InterpreterOverlay] ignored duplicate renderer scope-selected after global scope selection', {
             incoming: {
@@ -7634,6 +7681,8 @@ ${promptBody}
           this.scopedStructuredContext = null;
         }
         this.scopeSelectionInProgress = false;
+        this.lastGlobalScopeSelectedAt = Date.now();
+        this.lastGlobalScopeLocalBounds = clampedLocalBounds;
         const nextRegionContext = createOverlayRegionContextItem({
           role: selectedRole,
           bounds: selectedAbsoluteBounds,

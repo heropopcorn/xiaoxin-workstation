@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
-import { existsSync, mkdirSync, rmSync, createWriteStream, renameSync } from 'fs';
+import { cpSync, existsSync, mkdirSync, rmSync, createWriteStream, renameSync, statSync } from 'fs';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
 import https from 'node:https';
@@ -30,6 +30,12 @@ import {
   type ChildProcessGoneSignal,
   type OoEditorsExitSuppressionWindow,
 } from './office-extension-exit';
+import {
+  buildOoEditorsFallbackDownloadUrl,
+  OO_EDITORS_FALLBACK_ASSET_NAMES,
+  OO_EDITORS_FALLBACK_RELEASE_TAG,
+  resolveDocumentEngineRoot,
+} from './office-extension-source';
 
 const PORT = 38123;
 const MAIN_RENDERER_GONE_EXIT_SUPPRESSION_MS = 5_000;
@@ -324,20 +330,25 @@ export async function installOoEditors(options: InstallOptions = {}): Promise<vo
       }
 
       const release = await fetchLatestGitHubRelease();
-      if (!release) {
-        throw new Error('GitHub release unavailable (transient -- rate limit or network), try again later');
-      }
-
-      const asset = findAssetForArch(release.assets, arch);
-      if (!asset) {
+      const asset = release ? findAssetForArch(release.assets, arch) : null;
+      if (release && !asset) {
         const available = release.assets.map(a => a.name).join(', ');
         throw new Error(`No oo-editors asset for ${arch} in release ${release.tag_name} (available: ${available})`);
       }
 
-      progress({ stage: 'downloading', bytesDownloaded: 0, totalBytes: asset.size });
+      const downloadUrl = asset?.browser_download_url
+        ?? buildOoEditorsFallbackDownloadUrl(arch, DOCUMENT_ENGINE_RELEASE_REPOSITORY);
+      const assetName = asset?.name ?? OO_EDITORS_FALLBACK_ASSET_NAMES[arch];
+      const releaseTag = release?.tag_name ?? OO_EDITORS_FALLBACK_RELEASE_TAG;
+      const totalBytes = asset?.size;
 
-      const downloadUrl = asset.browser_download_url;
-      console.log(`[OfficeExtension] Downloading ${asset.name} (${asset.size} bytes) from GitHub release ${release.tag_name}`);
+      if (!asset) {
+        console.warn(`[OfficeExtension] GitHub API unavailable, downloading ${assetName} from fallback ${releaseTag}`);
+      }
+
+      progress({ stage: 'downloading', bytesDownloaded: 0, totalBytes });
+
+      console.log(`[OfficeExtension] Downloading ${assetName}${totalBytes ? ` (${totalBytes} bytes)` : ''} from GitHub release ${releaseTag}`);
 
       await downloadToFile(downloadUrl, zipPath, {
         method: 'GET',
@@ -369,6 +380,85 @@ export async function installOoEditors(options: InstallOptions = {}): Promise<vo
       } catch {}
 
       throw error;
+    }
+  });
+}
+
+function materializeDocumentEngineRoot(engineRoot: string, targetDir: string): void {
+  if (resolve(engineRoot) === resolve(targetDir)) {
+    return;
+  }
+
+  if (!existsSync(targetDir)) {
+    mkdirSync(targetDir, { recursive: true });
+  }
+
+  cpSync(engineRoot, targetDir, { recursive: true });
+}
+
+export async function installOoEditorsFromLocalPath(
+  sourcePath: string,
+  options: InstallOptions = {},
+): Promise<void> {
+  const trimmedSource = sourcePath.trim();
+  if (!trimmedSource) {
+    throw new Error('Select an oo-editors .zip or an extracted folder that contains server.js');
+  }
+  if (!existsSync(trimmedSource)) {
+    throw new Error(`Local document engine source not found: ${trimmedSource}`);
+  }
+
+  const ooEditorsDir = options.targetDir ?? getOoEditorsDir();
+  return runCoalescedInstall(ooEditorsDir, async () => {
+    const progress = options.emitProgress !== false ? emitProgress : () => {};
+    let extractedDir: string | null = null;
+
+    try {
+      const sourceStat = statSync(trimmedSource);
+      let engineRoot: string | null = null;
+
+      if (sourceStat.isFile()) {
+        if (!trimmedSource.toLowerCase().endsWith('.zip')) {
+          throw new Error('Select an oo-editors .zip or an extracted folder that contains server.js');
+        }
+        extractedDir = join(app.getPath('temp'), `oo-editors-local-${Date.now()}`);
+        mkdirSync(extractedDir, { recursive: true });
+        progress({ stage: 'extracting', message: 'Extracting files...' });
+        await extractZip(trimmedSource, extractedDir);
+        engineRoot = resolveDocumentEngineRoot(extractedDir);
+      } else if (sourceStat.isDirectory()) {
+        progress({ stage: 'extracting', message: 'Reading local engine...' });
+        engineRoot = resolveDocumentEngineRoot(trimmedSource);
+      } else {
+        throw new Error('Select an oo-editors .zip or an extracted folder that contains server.js');
+      }
+
+      if (!engineRoot) {
+        throw new Error('That file or folder is not a compatible document engine. It must contain server.js and package.json.');
+      }
+
+      progress({ stage: 'configuring', message: 'Configuring...' });
+      materializeDocumentEngineRoot(engineRoot, ooEditorsDir);
+
+      if (!existsSync(join(ooEditorsDir, 'server.js')) || !existsSync(join(ooEditorsDir, 'package.json'))) {
+        throw new Error('Extracted oo-editors is missing required files');
+      }
+
+      progress({ stage: 'complete', message: 'Installation complete' });
+      console.log(`[OfficeExtension] Installed from local source: ${trimmedSource}`);
+      trackOoEditorsEvent('Local install complete', 'info', { sourcePath: trimmedSource, targetDir: ooEditorsDir });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      progress({ stage: 'error', error: errorMessage });
+      console.error('[OfficeExtension] Local installation failed:', error);
+      trackOoEditorsEvent('Local install failed', 'error', { error: errorMessage });
+      throw error;
+    } finally {
+      if (extractedDir) {
+        try {
+          rmSync(extractedDir, { recursive: true, force: true });
+        } catch {}
+      }
     }
   });
 }

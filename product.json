@@ -59,7 +59,7 @@
 			"acl": ""
 		},
 		"documentEngine": {
-			"releaseRepository": "",
+			"releaseRepository": "openinterpreter/oo-editors",
 			"installDirectoryName": "document-engine"
 		}
 	},

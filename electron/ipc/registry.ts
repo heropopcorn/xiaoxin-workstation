@@ -448,6 +448,10 @@ export interface OpenPathDialogOptions {
   type?: 'file' | 'folder' | 'both';
   defaultPath?: string;
   title?: string;
+  filters?: Array<{
+    name: string;
+    extensions: string[];
+  }>;
 }
 
 export interface OpenPathDialogResponse {
@@ -1071,6 +1075,10 @@ export interface OfficeExtensionEnsureRunningResponse {
 
 export interface OfficeExtensionCheckInstalledResponse {
   installed: boolean;
+}
+
+export interface OfficeExtensionInstallRequest {
+  archivePath?: string;
 }
 
 export interface OfficeExtensionInstallResponse {

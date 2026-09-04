@@ -79,6 +79,12 @@ pnpm run extension:bootstrap
 pnpm run extension:verify
 ```
 
+Local QA notes, product-boundary decisions, and research checkpoints for the
+Xiaoxin Station line are indexed from [docs/qa/README.md](docs/qa/README.md).
+That folder is how this repo records what was tried on a machine, what was
+fixed, and which ideas belong on the desktop line versus the separate web
+line—not a substitute for GitHub issues.
+
 ## OIX runtime and shared home
 
 Workstation installs and launches the exact checksummed OIX release pinned by

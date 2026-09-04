@@ -39,6 +39,7 @@ class FakeBrowserWindow extends EventEmitter {
   bounds: Electron.Rectangle = display.bounds;
   focusable = true;
   ignoreMouseEvents: { ignore: boolean; options?: { forward?: boolean } } | null = null;
+  alwaysOnTop = false;
   opacity = 1;
   webContents = new FakeWebContents();
 
@@ -50,7 +51,9 @@ class FakeBrowserWindow extends EventEmitter {
 
   setVisibleOnAllWorkspaces(): void {}
 
-  setAlwaysOnTop(): void {}
+  setAlwaysOnTop(flag?: boolean): void {
+    this.alwaysOnTop = flag !== false;
+  }
 
   setBounds(bounds: Electron.Rectangle): void {
     this.bounds = bounds;
@@ -224,6 +227,26 @@ describe('OverlayWindow', () => {
     expect(window.opacity).toBe(0);
     expect(window.ignoreMouseEvents).toEqual({ ignore: true, options: { forward: true } });
     expect(window.bounds).toEqual(display.bounds);
+  });
+
+  test('hide parks the Windows overlay off-screen instead of covering the display', () => {
+    if (process.platform !== 'win32') {
+      return;
+    }
+
+    const overlay = new OverlayWindow();
+    const window = overlay.create() as unknown as FakeBrowserWindow;
+    window.showInactive();
+    window.setAlwaysOnTop(true);
+
+    overlay.hide();
+
+    expect(window.visible).toBe(false);
+    expect(window.focusable).toBe(false);
+    expect(window.alwaysOnTop).toBe(false);
+    expect(window.opacity).toBe(0);
+    expect(window.ignoreMouseEvents).toEqual({ ignore: true, options: undefined });
+    expect(window.bounds).toEqual({ x: -20000, y: -20000, width: 1, height: 1 });
   });
 
   test('disabled mouse events keep forwarded movement for renderer hover hit testing', () => {

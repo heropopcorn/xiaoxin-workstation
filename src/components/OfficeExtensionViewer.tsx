@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OFFICE_EXTENSION_VIEWER_ID } from '../../shared/element-ids';
 import { clearNativeDropTargetBounds, setNativeDropTargetBounds } from '../utils/nativeDropTargets';
-import { getRuntimeSystemInfo, pathBasename, theme as themeIpc } from '@/ipc';
+import { getRuntimeSystemInfo, openPathDialog, pathBasename, theme as themeIpc } from '@/ipc';
 import { buildOfficeExtensionOpenUrl } from '@/lib/officeExtensionUrl';
 import { mapOfficeExtensionSelectionMessage } from '@/lib/officeExtensionSelection';
 import { openFeedbackPopover } from '../utils/feedback';
@@ -321,6 +321,37 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
     }
   };
 
+  const handleInstallFromLocal = async () => {
+    if (!window.electron?.officeExtension?.install) return;
+
+    const picked = await openPathDialog({
+      type: 'file',
+      title: 'Select the oo-editors .zip',
+      filters: [
+        { name: 'oo-editors zip', extensions: ['zip'] },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (picked.canceled || !picked.filePaths[0]) {
+      return;
+    }
+
+    setViewerState({ status: 'extracting' });
+
+    try {
+      const result = await window.electron.officeExtension.install({ archivePath: picked.filePaths[0] });
+      if (!result.success) {
+        setViewerState({ status: 'error', message: result.error || 'Installation failed' });
+      }
+      if (result.success) {
+        setViewerState({ status: 'checking' });
+        setInstallationCheckKey(key => key + 1);
+      }
+    } catch (err: any) {
+      setViewerState({ status: 'error', message: err.message || 'Installation failed' });
+    }
+  };
+
   const handleRetry = () => {
     setViewerState({ status: 'checking' });
     setInstallationCheckKey(key => key + 1);
@@ -346,15 +377,24 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
         >
           <p className="mb-2 text-ui-base text-foreground">Compatible document engine required</p>
           <p className="mb-5 text-ui-sm text-muted-foreground">
-            Workstation does not bundle a document editor. You can optionally install oo-editors, a separate AGPL-3.0 compatible engine, to open and edit this file here.
+            Workstation does not bundle a document editor. You can optionally install oo-editors, a separate AGPL-3.0 compatible engine, to open and edit this file here. If GitHub download fails, choose a zip or extracted folder you already have.
           </p>
-          <Button
-            onClick={handleInstall}
-            variant="default"
-            size="sm"
-          >
-            Install oo-editors
-          </Button>
+          <div className="flex flex-col items-center gap-2">
+            <Button
+              onClick={handleInstall}
+              variant="default"
+              size="sm"
+            >
+              Install oo-editors
+            </Button>
+            <Button
+              onClick={() => void handleInstallFromLocal()}
+              variant="outline"
+              size="sm"
+            >
+              Install from local file
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -442,12 +482,18 @@ export function OfficeExtensionViewer({ filePath, refreshKey = 0 }: OfficeExtens
         <div className="text-center space-y-3">
           <div className="text-muted-foreground">Unable to load this file</div>
           <div className="max-w-md text-ui-sm text-muted-foreground">{viewerState.message}</div>
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               onClick={handleRetry}
               className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
             >
               Try again
+            </button>
+            <button
+              onClick={() => void handleInstallFromLocal()}
+              className="px-3 py-1.5 text-ui-base rounded-control bg-muted hover:bg-muted/80 text-foreground transition-colors"
+            >
+              Install from local file
             </button>
             <button
               onClick={() => openFeedbackPopover()}

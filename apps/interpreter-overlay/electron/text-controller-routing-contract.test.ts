@@ -106,7 +106,7 @@ describe('overlay text controller routing contract', () => {
     expect(dismissMethod).toContain('this.dismissOverlaySelectionForHeadedWorkspaceLaunch()');
     expect(dismissMethod).toContain('this.send({ ...DEFAULT_OVERLAY_STATE })');
     expect(dismissMethod).toContain('this.overlay.hide()');
-    expect(sendMethod).toContain('if (this.suppressDesktopAgentDashboard)');
+    expect(sendMethod).toContain('if (this.suppressDesktopAgentDashboard || (renderedState.mode === \'idle\' && !showDesktopDashboard))');
     expect(sendMethod).toContain('this.overlay.hide()');
     expect(sendMethod).toContain('!this.suppressDesktopAgentDashboard');
     expect(ensureMethod).toContain('presentSelection');

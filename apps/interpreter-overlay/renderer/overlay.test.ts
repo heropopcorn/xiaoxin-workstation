@@ -152,6 +152,55 @@ describe('overlay executing pill progress', () => {
   });
 });
 
+describe('overlay scope resize handles', () => {
+  test('attaches move/resize pointer listeners for the whole input session', () => {
+    const source = readOverlayRenderer();
+    const effectStart = source.indexOf('// Attach for the whole input session.');
+    expect(effectStart).toBeGreaterThanOrEqual(0);
+    const effectSource = source.slice(Math.max(0, effectStart - 120), source.indexOf('}, [displayBounds, send, showInput]);', effectStart));
+
+    expect(effectSource).toContain('if (!showInput)');
+    expect(effectSource).toContain("window.addEventListener('pointermove', handlePointerMove)");
+    expect(effectSource).toContain("window.addEventListener('pointerup', handlePointerUp)");
+    expect(effectSource).not.toContain('if (!showInput || !scopeEditorGestureRef.current)');
+  });
+
+  test('keeps a resized draft until the committed scope bounds arrive', () => {
+    const source = readOverlayRenderer();
+    const stateEffect = source.slice(
+      source.indexOf('return window.overlay.onState((nextState) => {'),
+      source.indexOf('const currentState = stateRef.current;'),
+    );
+    const completeStart = source.indexOf('const completeInteraction = (pointerId: number, restoreBlur: boolean) => {');
+    const completeSource = source.slice(completeStart, source.indexOf('const handlePointerUp = (event: PointerEvent) => {', completeStart));
+
+    expect(stateEffect).toContain('if (!scopeEditorGestureRef.current && !dragGestureRef.current)');
+    expect(stateEffect).not.toContain('scopeEditorGestureRef.current = null');
+    expect(completeSource).toContain('setDraftScopeBounds(nextBounds)');
+    expect(completeSource).toContain("send({ type: 'region-selected', bounds: nextBounds");
+    expect(completeSource).not.toContain('setDraftScopeBounds(null)');
+  });
+
+  test('resizes the selected region from the matching handle', () => {
+    const { resizeScopeBounds } = __test__;
+    const bounds = { x: 100, y: 80, width: 200, height: 120 };
+    const container = { x: 0, y: 0, width: 1000, height: 800 };
+
+    expect(resizeScopeBounds(bounds, 'se', 40, 20, container, false)).toEqual({
+      x: 100,
+      y: 80,
+      width: 240,
+      height: 140,
+    });
+    expect(resizeScopeBounds(bounds, 'nw', -20, -10, container, false)).toEqual({
+      x: 80,
+      y: 70,
+      width: 220,
+      height: 130,
+    });
+  });
+});
+
 describe('overlay thinking sheen lifecycle', () => {
   test('sheen stays on for the whole thinking window and stops when a trace is proposed', () => {
     const source = readOverlayRenderer();

@@ -48,7 +48,7 @@ assert.equal(overlay.distribution.telemetry.eventsUrl, '');
 assert.equal(overlay.distribution.telemetry.eventsAnonKey, '');
 assert.equal(overlay.distribution.updates.provider, 'none');
 assert.equal(overlay.distribution.updates.endpoint, '');
-assert.equal(overlay.distribution.documentEngine.releaseRepository, '');
+assert.equal(overlay.distribution.documentEngine.releaseRepository, 'openinterpreter/oo-editors');
 
 assert.match(builder, /^extends: \.\/electron-builder\.yml$/m);
 assert.match(builder, /^appId: com\.xinmed\.xiaoxin\.workstation$/m);

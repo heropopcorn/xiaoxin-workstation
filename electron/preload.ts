@@ -291,7 +291,12 @@ export interface ElectronAPI {
   getInitialFileTree: () => Promise<CachedFileTree | null>;
   log: (level: string, ...args: any[]) => void;
   openFolderDialog: () => Promise<OpenFolderDialogResponse>;
-  openPathDialog: (options?: { type?: 'file' | 'folder' | 'both'; defaultPath?: string; title?: string }) => Promise<{ canceled: boolean; filePaths: string[] }>;
+  openPathDialog: (options?: {
+    type?: 'file' | 'folder' | 'both';
+    defaultPath?: string;
+    title?: string;
+    filters?: Array<{ name: string; extensions: string[] }>;
+  }) => Promise<{ canceled: boolean; filePaths: string[] }>;
   savePathDialog: (options?: SavePathDialogOptions) => Promise<SavePathDialogResponse>;
   writeClipboardText: (text: string) => Promise<ClipboardWriteTextResponse>;
   getPathForFile: (file: File) => string;
@@ -525,7 +530,7 @@ export interface ElectronAPI {
     status: () => Promise<OfficeExtensionStatusResponse>;
     ensureRunning: () => Promise<OfficeExtensionEnsureRunningResponse>;
     checkInstalled: () => Promise<import('./ipc/registry').OfficeExtensionCheckInstalledResponse>;
-    install: () => Promise<import('./ipc/registry').OfficeExtensionInstallResponse>;
+    install: (request?: import('./ipc/registry').OfficeExtensionInstallRequest) => Promise<import('./ipc/registry').OfficeExtensionInstallResponse>;
     uninstall: () => Promise<import('./ipc/registry').OfficeExtensionUninstallResponse>;
     onInstallProgress: (callback: (event: import('./ipc/registry').OfficeExtensionInstallProgressEvent) => void) => () => void;
   };
@@ -1305,8 +1310,8 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke(IPC_CHANNELS.OFFICE_EXTENSION_ENSURE_RUNNING),
     checkInstalled: () =>
       ipcRenderer.invoke(IPC_CHANNELS.OFFICE_EXTENSION_CHECK_INSTALLED),
-    install: () =>
-      ipcRenderer.invoke(IPC_CHANNELS.OFFICE_EXTENSION_INSTALL),
+    install: (request?: import('./ipc/registry').OfficeExtensionInstallRequest) =>
+      ipcRenderer.invoke(IPC_CHANNELS.OFFICE_EXTENSION_INSTALL, request),
     uninstall: () =>
       ipcRenderer.invoke(IPC_CHANNELS.OFFICE_EXTENSION_UNINSTALL),
     onInstallProgress: (callback: (event: import('./ipc/registry').OfficeExtensionInstallProgressEvent) => void) => {

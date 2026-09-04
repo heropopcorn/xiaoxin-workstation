@@ -1017,6 +1017,10 @@ export async function openPathDialog(options?: {
   type?: 'file' | 'folder' | 'both';
   defaultPath?: string;
   title?: string;
+  filters?: Array<{
+    name: string;
+    extensions: string[];
+  }>;
 }): Promise<{
   canceled: boolean;
   filePaths: string[];

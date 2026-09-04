@@ -1096,6 +1096,7 @@ export function setupIpcHandlers(deps: HandlerDependencies): void {
         properties,
         defaultPath: options?.defaultPath,
         title: options?.title,
+        filters: options?.filters,
       });
       return result;
     }
@@ -2634,10 +2635,17 @@ export function setupIpcHandlers(deps: HandlerDependencies): void {
 
   registerHandle(
     IPC_CHANNELS.OFFICE_EXTENSION_INSTALL,
-    async (): Promise<import('./registry').OfficeExtensionInstallResponse> => {
+    async (
+      _event,
+      request?: import('./registry').OfficeExtensionInstallRequest,
+    ): Promise<import('./registry').OfficeExtensionInstallResponse> => {
       try {
-        const { installOoEditors } = await import('../services/office-extension');
-        await installOoEditors();
+        const { installOoEditors, installOoEditorsFromLocalPath } = await import('../services/office-extension');
+        if (request?.archivePath) {
+          await installOoEditorsFromLocalPath(request.archivePath);
+        } else {
+          await installOoEditors();
+        }
         return { success: true };
       } catch (error: any) {
         console.error('[IPC] OfficeExtension install error:', error);

@@ -27,6 +27,27 @@ function extractMethod(source: string, methodName: string): string {
 }
 
 describe('overlay click-through contract', () => {
+  test('does not start a global region drag on existing scope handles', () => {
+    const serviceSource = readOverlayService();
+    const mouseDownMethod = extractMethod(serviceSource, 'private handleGlobalMouseDown');
+    const overlayControlMethod = extractMethod(serviceSource, 'private isPointInsideOverlayControl');
+    const startedCaseStart = serviceSource.indexOf("case 'scope-selection-started':");
+    const startedCaseEnd = serviceSource.indexOf("case 'scope-selection-ended':", startedCaseStart);
+    const startedCase = serviceSource.slice(startedCaseStart, startedCaseEnd);
+    const regionSelectedStart = serviceSource.indexOf("case 'region-selected':");
+    const regionSelectedEnd = serviceSource.indexOf("this.lastGlobalScopeSelectedAt = Date.now();", regionSelectedStart);
+    const regionSelectedGuard = serviceSource.slice(regionSelectedStart, regionSelectedEnd);
+
+    const mouseDownGuard = mouseDownMethod.slice(0, mouseDownMethod.indexOf('this.globalScopeGesture = {'));
+    expect(mouseDownGuard).not.toContain('this.scopeSelectionInProgress');
+    expect(mouseDownGuard).toContain('this.sendDragPreview(null)');
+    expect(overlayControlMethod).toContain('isPointOnScopeEditorChrome(localPoint, this.overlayState.scopeBounds)');
+    expect(startedCase).toContain("action.mode === 'move' || action.mode === 'resize'");
+    expect(startedCase).toContain('this.globalScopeGesture = null');
+    expect(startedCase).toContain('this.sendDragPreview(null)');
+    expect(regionSelectedGuard).toContain('boundsApproximatelyEqual(action.bounds, this.lastGlobalScopeLocalBounds)');
+  });
+
   test('does not enable full-window mouse capture when a global scope drag starts', () => {
     const serviceSource = readOverlayService();
     const mouseDownMethod = extractMethod(serviceSource, 'private handleGlobalMouseDown');
@@ -160,6 +181,8 @@ describe('overlay click-through contract', () => {
     const visibilityLine = sendMethod.indexOf('this.syncProgressiveBlurVisibility();');
     expect(focusLine).toBeGreaterThanOrEqual(0);
     expect(visibilityLine).toBeGreaterThan(focusLine);
+    expect(sendMethod).toContain("renderedState.mode === 'idle' && !showDesktopDashboard");
+    expect(sendMethod).toContain('this.overlay.hide();');
 
     // Input mode owns the mouse so a region drag can never leak a system
     // text-selection drag into the app underneath (macOS routes the whole

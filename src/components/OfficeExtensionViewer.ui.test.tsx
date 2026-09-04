@@ -7,6 +7,7 @@ import { OfficeExtensionViewer } from './OfficeExtensionViewer';
 const ipcMocks = vi.hoisted(() => ({
   clearNativeDropTargetBounds: vi.fn(),
   getRuntimeSystemInfo: vi.fn(() => ({ platform: 'darwin' })),
+  openPathDialog: vi.fn(async () => ({ canceled: true, filePaths: [] as string[] })),
   pathBasename: vi.fn((targetPath: string) => targetPath.split('/').pop() ?? targetPath),
   setNativeDropTargetBounds: vi.fn(),
   theme: {
@@ -21,6 +22,7 @@ const refreshMocks = vi.hoisted(() => ({
 
 vi.mock('@/ipc', () => ({
   getRuntimeSystemInfo: ipcMocks.getRuntimeSystemInfo,
+  openPathDialog: ipcMocks.openPathDialog,
   pathBasename: ipcMocks.pathBasename,
   theme: ipcMocks.theme,
 }));
@@ -89,6 +91,7 @@ async function waitForOfficeMessageListener(listenerSpy: MockInstance) {
 describe('OfficeExtensionViewer', () => {
   beforeEach(() => {
     refreshMocks.trigger = null;
+    ipcMocks.openPathDialog.mockResolvedValue({ canceled: true, filePaths: [] });
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: false,
       media: query,
@@ -145,6 +148,45 @@ describe('OfficeExtensionViewer', () => {
 
     await waitFor(() => {
       expect(checkInstalled).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(ensureRunning).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByTestId(OFFICE_EXTENSION_VIEWER_ID)).toBeInTheDocument();
+  });
+
+  test('installs from a local zip chosen in the file dialog', async () => {
+    const checkInstalled = vi.fn()
+      .mockResolvedValueOnce({ installed: false })
+      .mockResolvedValueOnce({ installed: true });
+    const ensureRunning = vi.fn().mockResolvedValue({ success: true });
+    const install = vi.fn().mockResolvedValue({ success: true });
+    ipcMocks.openPathDialog.mockResolvedValueOnce({
+      canceled: false,
+      filePaths: ['C:/downloads/oo-editors-windows-x64.zip'],
+    });
+
+    Object.defineProperty(window, 'electron', {
+      configurable: true,
+      value: {
+        officeExtension: {
+          checkInstalled,
+          ensureRunning,
+          install,
+          onInstallProgress: vi.fn(() => () => {}),
+        },
+      },
+    });
+
+    render(<OfficeExtensionViewer filePath="/workspace/report.docx" />);
+
+    await screen.findByText('Install from local file');
+    await act(async () => {
+      screen.getByText('Install from local file').click();
+    });
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalledWith({ archivePath: 'C:/downloads/oo-editors-windows-x64.zip' });
     });
     await waitFor(() => {
       expect(ensureRunning).toHaveBeenCalledTimes(1);
