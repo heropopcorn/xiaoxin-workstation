@@ -1,17 +1,19 @@
 import { describe, test, expect } from 'bun:test';
 import { z } from 'zod';
+import { ModelProviderSchema, ProviderTypeSchema } from './configSchema';
 
+// Must stay in sync with ProviderType in shared/types/provider.ts. Declaring a
+// local copy of the schemas here instead of importing them let 'gateway' drift
+// out of configSchema while this file stayed green.
 const VALID_PROVIDER_TYPES = [
   'hosted',
+  'gateway',
   'openai-oauth',
   'api',
   'local',
   'agent',
   'terminal',
 ] as const;
-
-const ModelProviderSchema = z.enum([...VALID_PROVIDER_TYPES]);
-const ProviderTypeSchema = z.enum([...VALID_PROVIDER_TYPES]);
 
 describe('configSchema provider validation (#591, #590)', () => {
   test('openai-oauth should be a valid model provider', () => {

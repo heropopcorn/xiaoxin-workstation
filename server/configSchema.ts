@@ -10,8 +10,9 @@ import { supportedLanguages } from '../shared/locales';
 import { ONBOARDING_STATE_VERSION } from '../shared/types/onboardingState';
 
 // Model provider - about API format/protocol, not service
-const ModelProviderSchema = z.enum([
+export const ModelProviderSchema = z.enum([
   'hosted',
+  'gateway',
   'openai-oauth',
   'api',
   'local',
@@ -20,8 +21,9 @@ const ModelProviderSchema = z.enum([
 ]);
 
 // Provider type - simplified, with 'api' as unified type for API key providers
-const ProviderTypeSchema = z.enum([
+export const ProviderTypeSchema = z.enum([
   'hosted',
+  'gateway',     // Distribution-operated model gateway
   'openai-oauth',
   'api',         // Unified type for all API key providers (anthropic, openai, groq, openrouter, custom)
   'local',
