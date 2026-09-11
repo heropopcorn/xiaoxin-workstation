@@ -14,6 +14,32 @@ protocol, approval queue, or local runtime.
   - `apps/interpreter-extension/playwright`: `d36d4155c75471e583b823c8194fc166866da961`
   - `submodules/interpreter-cua`: `c522652d4b11dc9cb50360d0192e7a6e2bab3157`
 
+## OIX runtime source
+
+This repository ships only the prebuilt runtime (`resources/oix/**`,
+`VERSION` = `rust-v0.0.34`, fetched by `scripts/download-oix.mjs`). **The
+matching OIX source is checked out separately and is available locally.** It is
+outside this repository and outside the editor workspace, so a search scoped to
+`xiaoxin-workstation` will not find it. Do not conclude from that absence that
+the source is unavailable.
+
+- Local checkout: `D:\project\openinterpreter-oix`
+- Remote: <https://github.com/openinterpreter/openinterpreter.git>
+- Pinned at tag `rust-v0.0.34`, commit
+  `52a31019714294add53cafbc5268e1467b471263`
+- Scale: 2,555 `.rs` files, 1,165,276 lines, 136 crates under `codex-rs/`
+- App-server seam implementation: `codex-rs/app-server`,
+  `app-server-protocol`, `app-server-transport`
+- Harness auto-detect: `default_harness_for_provider_model` in the
+  `model-provider-info` crate
+
+Having the source does not relax the boundary below: runtime changes still
+belong in an independently pinned OIX fork, not in this repository. The known
+open question is build reproducibility — the released binary and this tag show
+an unexplained behavioral difference (no `inference_*` rollout-trace events on
+the `stream_chat_completions_compat` path), recorded in
+`docs/qa/2026-09-08-oix-provider-tool-audit-handoff.md`.
+
 The parent Xiaoxin repository records the exact downstream commit as a Git
 submodule. It must never follow `main` implicitly.
 
@@ -26,6 +52,9 @@ submodule. It must never follow `main` implicitly.
 - `scripts/verify-xiaoxin-distribution.mjs`: secret/identity boundary checks.
 - `scripts/xiaoxin-windows-gate.ps1`: source/build/manual acceptance evidence.
 - `docs/xiaoxin-windows-gate.md`: employee Windows runbook.
+- `docs/hosted-gateway/`: Xiaoxin hosted-gateway migration task book. Planning
+  and acceptance records only; it must not become a second source of truth for
+  application behavior.
 
 The first alpha intentionally reuses the upstream icon assets. Replace those
 only after Xiaoxin brand artwork is supplied and reviewed; do not synthesize a

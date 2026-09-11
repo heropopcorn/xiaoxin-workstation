@@ -52,6 +52,12 @@ become a second application or owner of canonical client release logic.
 
 ## Dependencies and provenance
 
+- The OIX runtime source **is available locally** at
+  `D:\project\openinterpreter-oix`, pinned to the same `rust-v0.0.34` tag as
+  `resources/oix/VERSION`. It sits outside this repository and outside the
+  editor workspace, so repository-scoped searches will not find it; never
+  report the OIX source as missing or unobtainable. See
+  `docs/xiaoxin-upstream.md`.
 - `apps/interpreter-extension` is the Open Interpreter browser-extension
   submodule and retains its independent release history and Playwriter ancestry.
 - `submodules/interpreter-cua` is the Open Interpreter computer-use fork and
@@ -59,6 +65,23 @@ become a second application or owner of canonical client release logic.
   contract; a local checkout name does not imply cloud-provider compatibility.
 - Never commit credentials, token backups, signing material, paid SDKs, or
   proprietary binary licenses.
+
+## Forbidden: fake agent fixes
+
+Never replace the model with regex, keyword gates, or hardcoded case
+returns. If the model fails to call Computer Use (or any other tool),
+fix the real path: tool injection, prompt names matching
+`builtin-cua-driver__*`, and the model calling those tools itself.
+
+Do not add intent matchers that run `list_apps` / `get_app_state` /
+`type_text` / browser page inspect before the model, then tell the model
+the action already happened. Do not expand regex to “cover more
+phrasings.” That is fabrication — the same class as
+`if (user==XXX) return XXX's data`.
+
+Pass: the model invoked the correct tool and the target OS window
+changed. Fail: text appeared because assist typed, or chat claimed
+success after a pattern match.
 
 ## Code rules
 
