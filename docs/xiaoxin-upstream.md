@@ -24,8 +24,12 @@ outside this repository and outside the editor workspace, so a search scoped to
 the source is unavailable.
 
 - Local checkout: `D:\project\openinterpreter-oix`
-- Remote: <https://github.com/openinterpreter/openinterpreter.git>
-- Pinned at tag `rust-v0.0.34`, commit
+- Our fork (`origin`): <https://github.com/heropopcorn/xiaoxin-oix>, branch
+  `xiaoxin/rust-v0.0.34`. A depth-1 vendored import of the pinned tag, not a
+  full-history fork; upstream's `.github/workflows/` is excluded so its release
+  and publish pipelines can never run under our account.
+- Upstream (`upstream`): <https://github.com/openinterpreter/openinterpreter.git>
+- Pinned at tag `rust-v0.0.34`, upstream commit
   `52a31019714294add53cafbc5268e1467b471263`
 - Scale: 2,555 `.rs` files, 1,165,276 lines, 136 crates under `codex-rs/`
 - App-server seam implementation: `codex-rs/app-server`,
@@ -33,11 +37,19 @@ the source is unavailable.
 - Harness auto-detect: `default_harness_for_provider_model` in the
   `model-provider-info` crate
 
-Having the source does not relax the boundary below: runtime changes still
-belong in an independently pinned OIX fork, not in this repository. The known
-open question is build reproducibility — the released binary and this tag show
-an unexplained behavioral difference (no `inference_*` rollout-trace events on
-the `stream_chat_completions_compat` path), recorded in
+Runtime changes belong in that fork, not in this repository.
+
+Building it is verified: `cargo build --release -p codex-cli` with the pinned
+1.95.0 toolchain produces a binary that, once renamed to `interpreter.exe`,
+satisfies `defaultProbeBinary` in `server/utils/oixRuntime.ts` and is within
+11 KB of the shipped release. Product identity is resolved at runtime from the
+executable name, not at compile time, so no branding flag is needed. Build
+obstacles and their fixes are recorded in
+`docs/qa/2026-09-11-oix-selfbuild-and-wire-evidence.md`.
+
+The remaining open question is behavioral reproducibility: the released binary
+and this tag show an unexplained difference (no `inference_*` rollout-trace
+events on the `stream_chat_completions_compat` path), recorded in
 `docs/qa/2026-09-08-oix-provider-tool-audit-handoff.md`.
 
 The parent Xiaoxin repository records the exact downstream commit as a Git

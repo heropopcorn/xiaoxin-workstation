@@ -9,7 +9,8 @@
 1. **模型不调 Computer Use 的原因已经用实锤证据确认：CUA 工具从来没有进入发给模型的 `tools` 数组。** 不是模型能力问题，不是被截断或改名，是根本没注入。
 2. **harness 劫持问题已经真正修掉了。** wire request 里的系统提示词是 Workstation 自己的，不是 Qwen-CLI 人格。这条老怀疑可以结案。
 3. **缺陷在 Workstation 侧，不在 OIX。** 是本仓库三处写死的 `mcp_servers: {}` 把 CUA 挡在模型工具表之外，OIX 只是照配置执行。
-4. **OIX 源码可以自建出可用二进制，已实测通过。** 因此"因为上游所以改不了"这个约束不成立。
+4. **OIX 源码可以自建出能替换在发二进制的产物，已实测通过。** 因此"因为上游所以
+   改不了"这个约束不成立。
 5. **依赖闭包裁剪的上限是 25%，不是"大部分"**，而且只有换掉发布入口才拿得到。
 
 ## 一、wire 级证据：`tools` 数组里没有 CUA
@@ -108,12 +109,12 @@ introduce a parallel direct-MCP tool surface for the model.”
 ### 构建实测结果
 
 ```
-cargo build --release -p codex-app-server     EXIT=0     24 分 42 秒
-产物 codex-app-server.exe                     296,898,560 字节
-对照 在发的 interpreter.exe                    359,823,872 字节
+cargo build --release -p codex-app-server     EXIT=0      24 分 42 秒    296,898,560 字节
+cargo build --release -p codex-cli            EXIT=0     约 95 分钟      359,813,120 字节
+对照 在发的 interpreter.exe                                              359,823,872 字节
 ```
 
-`--help` 正常，`--listen` 默认 `stdio://`。
+`codex-cli` 的产物与在发二进制只差 10,752 字节，**且已验证可以直接替换**（见下）。
 
 ### 五个构建障碍与解法
 
@@ -163,9 +164,26 @@ Checked packages: ..., D:\project\xiaoxin-workstation\resources\oix\win32-x64, .
 - `interpreter-app tools ...`（模型可见的应用工具通道）
 - `debug trace-reduce`
 
-因此正确的自建入口是 `codex-cli`（产出 bin 名 `codex`，打包时改名
-`interpreter.exe`）。**禁止**通过放宽 `defaultProbeBinary` 的正则来让不兼容的
-二进制通过校验——那是掩盖问题，不是解决问题。
+因此正确的自建入口是 `codex-cli`。**禁止**通过放宽 `defaultProbeBinary` 的正则来
+让不兼容的二进制通过校验——那是掩盖问题，不是解决问题。
+
+### `codex-cli` 自建产物已验证可直接替换
+
+```
+自建 codex.exe                --version -> codex 0.0.34          门槛1 不过
+同一文件改名 interpreter.exe  --version -> interpreter 0.0.34    门槛1 通过
+                              app-server --help 含 --listen      门槛2 通过
+子命令 mcp / tools / debug / app-server                          齐全
+```
+
+品牌不是编译期开关，而是**按可执行文件名做的运行时判定**：
+`codex_product_info::Product::current()` 决定 `--version` 的名字、配置目录
+（`~/.codex` 对 `~/.openinterpreter`）、项目级配置目录（`.codex/` 对
+`.openinterpreter/`）以及 `request_user_input` 等默认特性开关。对应测试是
+`codex-rs/cli/tests/product_identity.rs`。
+
+所以自建流程是：`cargo build --release -p codex-cli` 之后把 `codex.exe` 改名为
+`interpreter.exe` 即可，不需要改任何 Workstation 代码，也不需要动校验正则。
 
 ## 四、依赖闭包裁剪测算
 
@@ -194,8 +212,10 @@ workspace 显式成员 129 个。
 
 - 继续当前形态（吃上游 release 二进制）：可行但不可控，且已被证明会遇到修不了的
   上游缺陷。
-- 自建 OIX（fork + 钉住 + 自己构建）：**已验证技术可行**。代价是构建基建（代理、
-  提权、V8 预编译库、343 MB 产物的存放）与 Rust 维护能力。
+- 自建 OIX（fork + 钉住 + 自己构建）：**已验证技术可行，产物可直接替换**。代价是
+  构建基建（代理、提权、V8 预编译库、343 MB 产物的存放）与 Rust 维护能力。
+  fork 在 <https://github.com/heropopcorn/xiaoxin-oix>，分支
+  `xiaoxin/rust-v0.0.34`。
 - 重写 app-server（自己实现协议服务端）：本次未推进。补充测量：事件流消费端
   `src/lib/codex/event-mapper.ts` 只有 314 行且以 `.otherwise(() => [])` 收尾，
   未识别的通知被静默忽略，因此协议保真的风险低于先前估计。协议规模见
@@ -206,16 +226,18 @@ OIX 里。
 
 ## 六、未完成事项
 
-1. `codex-cli` 的自建尚未完成（构建进行中）。完成后需验证它能否替换
-   `interpreter.exe` 并通过 `defaultProbeBinary`。
+1. 自建二进制**尚未实际装进应用跑过**。`defaultProbeBinary` 两道门已验证通过，
+   但还没有替换 `resources/oix/win32-x64/bin/interpreter.exe` 并完整启动一次
+   Workstation 做端到端确认。
 2. CUA 工具注入未实施。验收必须以网关 `request.json` 的 `tools` 数组为准。
-3. OIX 源码没有公司 fork 远端，也没有本地维护分支；`recursion_limit` 修复目前只
-   存在于本地工作区。需要先建远端再落地 submodule 形态（可参照
-   `submodules/interpreter-cua` 的 fork + 钉住 commit 形态）。
-4. `pnpm typecheck` 仍被 `verify:xiaoxin-distribution` 中既有的 PowerShell 语法
+3. 自建产物没有分发通道。约 343 MB 的二进制不能进 git，`scripts/download-oix.mjs`
+   目前取的是上游 release。要把自建产物变成默认，需要先有存放处。
+4. fork 尚未转成 submodule。现在只是并列的本地 checkout，`docs/xiaoxin-upstream.md`
+   记的是路径而不是钉定 commit（可参照 `submodules/interpreter-cua` 的形态）。
+5. `pnpm typecheck` 仍被 `verify:xiaoxin-distribution` 中既有的 PowerShell 语法
    错误提前阻断（`Unexpected token 'off'`）。直接运行 `npx tsc --noEmit` 与
    `npx tsc -p tsconfig.electron.json --noEmit` 可通过。
-5. 本次为验证替换而做的环境改动：已开启 Windows 开发者模式注册表项
+6. 本次为验证替换而做的环境改动：已开启 Windows 开发者模式注册表项
    `AllowDevelopmentWithoutDevLicense=1`；`resources/oix` 与已安装的 standalone
    包中各留有 `interpreter.exe.orig-cli` 备份（359,823,872 字节），二进制已还原为
    原始 CLI。
