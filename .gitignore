@@ -10,6 +10,7 @@ node_modules
 dist
 dist-electron
 dist-server
+dist-xiaoxin/
 build/*
 !build/azure-pipelines/
 release
@@ -113,6 +114,11 @@ dist-cross/
 
 # Local scenario runner output
 scenario-runs/
+
+# Scratch space for local investigations: throwaway INTERPRETER_HOME dirs,
+# capture proxies and their virtualenvs, smoke-test output.
+.tmp/
+tmp/
 
 # Editor recovery files
 *.swp
