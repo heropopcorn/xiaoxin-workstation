@@ -1,0 +1,23 @@
+---
+description: 严禁用正则/硬编码冒充智能体；只修真实工具链路
+alwaysApply: true
+---
+
+# 严禁造假式修复
+
+智能体产品里，禁止用正则、关键词门闩、单用户/单句硬编码，在模型跑之前代跑工具，或返回「看起来成功」的结果。
+
+用户类比：日报查不到就 `if (user==XXX) return XXX的数据`。这是造假，不是修 bug。评分按 D，必须拆掉。
+
+## 禁止
+
+- `WINDOW_OPERATE_PATTERNS`、`WINDOW_LIST_PATTERNS`、`PAGE_READ_PATTERNS`、`extractDesktopWindowTypeInText` 一类「句子像盘点/填表/读页就 assist 自己调工具」
+- 先代跑 `list_apps` / `type_text` / 浏览器 inspect，再告诉模型「已经列出/已经写过/已经读页」
+- 用更多中英文正则去「覆盖说法」，假装补全了智能体
+- 发送后立刻弹出权限：那是助手在模型之前调了工具，不是模型自己点的
+
+## 必须
+
+- 修工具是否注入、prompt 是否与 `builtin-cua-driver__list_apps` / `__get_app_state` / `__type_text` 一致
+- 通过：模型自己调用了正确工具，且目标 OS 窗口变了
+- 失败：字是 assist 打的，或匹配到句式后聊天声称成功

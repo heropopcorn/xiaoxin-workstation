@@ -18,6 +18,7 @@ import {
   StdioJsonRpcTransport,
   type JsonRpcTransport,
   resolveDefaultCodexHome,
+  resolveRolloutTraceRoot,
   getInterpreterCliSandboxReadableRoots,
   getInterpreterCliSandboxWritableRoots,
 } from "@/lib/codex/app-server-client";
@@ -882,6 +883,52 @@ describe("CodexAppServerClient", () => {
     );
     assert.equal(env.PATH, "/usr/bin:/bin");
     assert.equal(env.NODE_V8_COVERAGE, undefined);
+  });
+
+  test("omits CODEX_ROLLOUT_TRACE_ROOT when rolloutTraceRoot is not provided", () => {
+    const env = buildCodexSpawnEnv({
+      baseEnv: { CODEX_ROLLOUT_TRACE_ROOT: "/leaked/from/host/env" },
+      codeHome: "/Users/alice/Library/Application Support/interpreter/codex-home",
+      codexBinary: "/Applications/Interpreter.app/Contents/Resources/codex",
+      platform: "darwin",
+      pathExists: () => true,
+    });
+
+    assert.equal(env.CODEX_ROLLOUT_TRACE_ROOT, undefined);
+  });
+
+  test("forwards rolloutTraceRoot as CODEX_ROLLOUT_TRACE_ROOT for OIX", () => {
+    const env = buildCodexSpawnEnv({
+      baseEnv: {},
+      codeHome: "/Users/alice/Library/Application Support/interpreter/codex-home",
+      codexBinary: "/Applications/Interpreter.app/Contents/Resources/codex",
+      platform: "darwin",
+      pathExists: () => true,
+      rolloutTraceRoot: "/Users/alice/Library/Application Support/interpreter/codex-home/rollout-traces",
+    });
+
+    assert.equal(
+      env.CODEX_ROLLOUT_TRACE_ROOT,
+      "/Users/alice/Library/Application Support/interpreter/codex-home/rollout-traces",
+    );
+  });
+
+  test("resolveRolloutTraceRoot stays disabled unless WORKSTATION_ROLLOUT_TRACE=1", () => {
+    assert.equal(
+      resolveRolloutTraceRoot("/Users/alice/codex-home", {}),
+      undefined,
+    );
+    assert.equal(
+      resolveRolloutTraceRoot("/Users/alice/codex-home", { WORKSTATION_ROLLOUT_TRACE: "0" }),
+      undefined,
+    );
+  });
+
+  test("resolveRolloutTraceRoot resolves a bundle directory under codeHome when opted in", () => {
+    assert.equal(
+      resolveRolloutTraceRoot("/Users/alice/codex-home", { WORKSTATION_ROLLOUT_TRACE: "1" }),
+      path.join("/Users/alice/codex-home", "rollout-traces"),
+    );
   });
 
   test("lists MCP auth status through interpreter CLI JSON output", async () => {

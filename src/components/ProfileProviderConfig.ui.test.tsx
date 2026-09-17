@@ -6,6 +6,9 @@ import {
   API_BASE_URL_PICKER_EDIT_INPUT_ID,
   API_BASE_URL_PICKER_TRIGGER_ID,
   HOSTED_MODEL_PICKER_POPOVER_ID,
+  MODEL_GATEWAY_PICKER_ERROR_ID,
+  MODEL_GATEWAY_PICKER_OPTION_ITEM_ID,
+  MODEL_GATEWAY_PICKER_RETRY_BUTTON_ID,
   PROFILE_CUSTOM_MODEL_INPUT_ID,
   PROFILE_MODEL_SELECT_ID,
 } from '../../shared/element-ids';
@@ -53,6 +56,11 @@ const providersMocks = vi.hoisted(() => ({
   initiateOAuth: vi.fn(async () => ({ authUrl: 'https://example.com', flowId: 'flow-1' })),
   disconnectOAuth: vi.fn(async () => undefined),
   runClaudeLogin: vi.fn(async () => undefined),
+  listModelGatewayModels: vi.fn(async () => ({
+    configured: false,
+    models: [] as Array<{ id: string; name: string; isDefault: boolean; description?: string }>,
+    fetchedAt: Date.now(),
+  })),
 }));
 
 vi.mock('@/ipc', () => ({
@@ -570,5 +578,68 @@ describe('ProfileProviderConfig', () => {
       ([providerId]) => providerId,
     );
     expect(requestedProviderIds).not.toContain('openai_api_key');
+  });
+
+  function gatewayProfile(): Profile {
+    return {
+      id: 'gateway-profile',
+      name: 'Online',
+      modelId: '',
+      isBuiltin: false,
+      provider: 'gateway',
+      codexProfileId: 'model-gateway',
+    };
+  }
+
+  test('lists the models the gateway serves and selects one without any endpoint config', async () => {
+    const user = userEvent.setup();
+    const onChangeSpy = vi.fn();
+    providersMocks.listModelGatewayModels.mockResolvedValue({
+      configured: true,
+      models: [
+        { id: 'qwen3.8-max', name: '千问3.8-Max', isDefault: false, description: '图片理解 · 工具调用' },
+        { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', isDefault: false },
+      ],
+      fetchedAt: Date.now(),
+    });
+
+    render(<Harness profile={gatewayProfile()} onChangeSpy={onChangeSpy} />);
+
+    const options = await screen.findAllByTestId(MODEL_GATEWAY_PICKER_OPTION_ITEM_ID);
+    expect(options).toHaveLength(2);
+    expect(await screen.findByText('千问3.8-Max')).toBeVisible();
+
+    await user.click(options[1]!);
+
+    expect(onChangeSpy).toHaveBeenCalledWith({
+      modelId: 'claude-sonnet-4.6',
+      name: 'Claude Sonnet 4.6',
+    });
+    // The operator owns the endpoint and the credential, so neither is asked for.
+    expect(screen.queryByTestId(API_BASE_URL_PICKER_TRIGGER_ID)).toBeNull();
+  });
+
+  test('explains a gateway outage and retries instead of showing an empty list', async () => {
+    const user = userEvent.setup();
+    providersMocks.listModelGatewayModels.mockRejectedValueOnce(
+      new Error('Model gateway model list request failed: HTTP 502'),
+    );
+
+    render(<Harness profile={gatewayProfile()} onChangeSpy={vi.fn()} />);
+
+    expect(await screen.findByTestId(MODEL_GATEWAY_PICKER_ERROR_ID)).toBeVisible();
+    expect(screen.queryAllByTestId(MODEL_GATEWAY_PICKER_OPTION_ITEM_ID)).toHaveLength(0);
+
+    providersMocks.listModelGatewayModels.mockResolvedValue({
+      configured: true,
+      models: [{ id: 'qwen3.8-max', name: '千问3.8-Max', isDefault: false }],
+      fetchedAt: Date.now(),
+    });
+    await user.click(screen.getByTestId(MODEL_GATEWAY_PICKER_RETRY_BUTTON_ID));
+
+    expect(await screen.findByText('千问3.8-Max')).toBeVisible();
+    await waitFor(() => {
+      expect(screen.queryByTestId(MODEL_GATEWAY_PICKER_ERROR_ID)).toBeNull();
+    });
   });
 });

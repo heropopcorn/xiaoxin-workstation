@@ -17,6 +17,7 @@ import {
 import { ProfileProviderConfig } from './ProfileProviderConfig';
 import { ProfileCardGrid } from './ProfileCardGrid';
 import { useProfileStatuses } from '../hooks/useProfileStatuses';
+import { useModelGatewayCatalog } from '../hooks/use-model-gateway-catalog';
 import {
   useInterpreterHarnesses,
   useInterpreterProviders,
@@ -226,6 +227,7 @@ interface ProfilePreset {
 // used only to look up scaffolding (never sent to the app-server).
 // ========================================================================
 type PresetKey =
+  | 'model-gateway'
   | 'hosted'
   | 'openai-oauth'
   | 'local'
@@ -238,6 +240,20 @@ type PresetKey =
   | 'custom-api';
 
 const PRESET_SCAFFOLDING: Record<PresetKey, ProfilePreset> = {
+  // The operator owns both the endpoint and the model list, so this preset
+  // carries no baseURL, no key, and no default model id: the model comes from
+  // the gateway catalog the user picks from (see ProfileProviderConfig).
+  'model-gateway': {
+    id: 'model-gateway',
+    title: 'Online models',
+    description: 'Models provided by your Interpreter service. No setup required.',
+    icon: <InterpreterLogoMark fitSquare size={20} segmentClassName="bg-current" className="text-muted-foreground" />,
+    group: 'recommended',
+    defaultName: 'Online',
+    provider: 'gateway',
+    codexProfileId: 'model-gateway',
+    modelId: '',
+  },
   hosted: {
     id: 'hosted',
     title: 'Interpreter Models',
@@ -391,8 +407,11 @@ const PRESET_KEY_BY_API_PRESET: Partial<Record<ApiPreset, PresetKey>> = {
  * are merged in explicitly below. Ordering follows PROFILE_PRESET_ORDER so the
  * existing grouped layout, icons, and branding are preserved exactly.
  */
-function buildVisibleProfilePresets(runtimeProviders: v2.InterpreterProvider[]): ProfilePreset[] {
-  const entries = buildProviderMenuEntries(runtimeProviders);
+function buildVisibleProfilePresets(
+  runtimeProviders: v2.InterpreterProvider[],
+  options?: { includeModelGateway?: boolean },
+): ProfilePreset[] {
+  const entries = buildProviderMenuEntries(runtimeProviders, options);
   const keys = new Set<PresetKey>();
   const runtimeEntryByKey = new Map<PresetKey, ProviderMenuEntry>();
   const genericRuntimePresets: ProfilePreset[] = [];
@@ -479,7 +498,11 @@ function buildVisibleProfilePresets(runtimeProviders: v2.InterpreterProvider[]):
     .map((key) => {
       const preset = PRESET_SCAFFOLDING[key];
       const entry = runtimeEntryByKey.get(key);
-      if (!entry || entry.isDocumentedFallback || key === 'custom-api' || key === 'local') {
+      // The gateway carries a synthetic '__app:' id and no runtime metadata, so
+      // merging the entry in would overwrite its codexProfileId with an id that
+      // must never reach the app-server.
+      if (!entry || entry.isDocumentedFallback || key === 'custom-api' || key === 'local'
+        || key === 'model-gateway') {
         return preset;
       }
       return {
@@ -505,6 +528,10 @@ function buildVisibleProfilePresets(runtimeProviders: v2.InterpreterProvider[]):
  */
 function presetKeyFromMenuEntry(entry: ProviderMenuEntry): PresetKey | null {
   switch (entry.appProviderType) {
+    case 'gateway':
+      // Distribution-operated gateway ('__app:model-gateway'), merged in only
+      // when the build has one; see buildAppSpecialProviderEntries.
+      return 'model-gateway';
     case 'hosted':
       // Documented GAP-HOSTED fallback entry ('__app:hosted').
       return 'hosted';
@@ -533,6 +560,7 @@ function presetKeyFromMenuEntry(entry: ProviderMenuEntry): PresetKey | null {
 // fallback entry resolves to claude-code-terminal; codex-terminal is paired here
 // so both terminal presets always render together when CLI agents are offered.
 const PROFILE_PRESET_ORDER: PresetKey[] = [
+  'model-gateway',
   'hosted',
   'openai-oauth',
   'local',
@@ -907,6 +935,9 @@ function ProfilePresetPicker({
   isLoading: boolean;
 }) {
   const { t } = useTranslation();
+  // Whether this build has a gateway is main-process state (the endpoint can be
+  // overridden by environment), so it has to be fetched rather than read here.
+  const { catalog: gatewayCatalog } = useModelGatewayCatalog();
 
   const breadcrumbs: BreadcrumbItem[] = [
     { label: t('settings.profiles.presetPicker.breadcrumbModels'), onClick: onBack },
@@ -943,7 +974,9 @@ function ProfilePresetPicker({
     );
   }
 
-  const visiblePresets = buildVisibleProfilePresets(runtimeProviders);
+  const visiblePresets = buildVisibleProfilePresets(runtimeProviders, {
+    includeModelGateway: gatewayCatalog?.configured === true,
+  });
   const allGroups: PresetGroupConfig[] = [
     { id: 'recommended', label: t('settings.profiles.presetPicker.groupRecommended'), presets: visiblePresets.filter(p => p.group === 'recommended') },
     { id: 'subscription', label: t('settings.profiles.presetPicker.groupSubscriptions'), presets: visiblePresets.filter(p => p.group === 'subscription') },

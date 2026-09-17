@@ -8,6 +8,7 @@
 import * as providerStore from '../services/providerStore';
 import type { v2 } from './codex-generated-types/index';
 import { openRouterModelCatalog } from '../utils/openRouterModelCatalog';
+import { getModelGatewayBaseUrl } from '../../shared/modelGateway';
 import type {
   Provider,
   OAuthStatus,
@@ -2584,6 +2585,19 @@ export async function getAllProfileStatuses(isAuthenticated?: boolean): Promise<
         }
         break;
       }
+
+      case 'gateway':
+        // Readiness here is only "this build has a gateway to talk to". Whether
+        // the gateway is up right now is answered by the model list itself; this
+        // status runs for every profile and must not fan out network calls.
+        if (getModelGatewayBaseUrl()) {
+          ready = true;
+          detail = 'Provided by your Interpreter service';
+          badge = 'Ready';
+        } else {
+          detail = 'No model service configured for this build';
+        }
+        break;
 
       case 'hosted':
         if (isAuthenticated) {

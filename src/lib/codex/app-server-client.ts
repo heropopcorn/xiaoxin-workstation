@@ -660,6 +660,15 @@ type BuildCodexSpawnEnvArgs = {
   codexBinary: string;
   platform?: NodeJS.Platform;
   pathExists?: (candidatePath: string) => boolean;
+  // Absolute directory OIX should write rollout-trace bundles into. Maps
+  // directly to OIX's own `CODEX_ROLLOUT_TRACE_ROOT` env var (see
+  // `codex-rs/rollout-trace/README.md` upstream). When set, every new root
+  // thread the spawned app-server process starts writes a bundle under this
+  // directory containing the exact per-attempt provider request/response
+  // payloads (manifest.json + trace.jsonl + payloads/*.json). Omit to leave
+  // OIX's rollout tracing disabled, which is the default because bundles can
+  // contain full prompts, tool outputs, and other sensitive session content.
+  rolloutTraceRoot?: string;
 };
 
 type TransportEvents = {
@@ -1064,6 +1073,7 @@ export function buildCodexSpawnEnv({
   codexBinary,
   platform = process.platform,
   pathExists = existsSync,
+  rolloutTraceRoot,
 }: BuildCodexSpawnEnvArgs): NodeJS.ProcessEnv {
   const platformPath = platform === "win32" ? path.win32 : path.posix;
   const isolatedHome = platformPath.join(codeHome, "home");
@@ -1075,6 +1085,15 @@ export function buildCodexSpawnEnv({
     INTERPRETER_DISABLE_SYSTEM_IMPORT: "1",
     HOME: isolatedHome,
   };
+
+  if (rolloutTraceRoot) {
+    nextEnv.CODEX_ROLLOUT_TRACE_ROOT = rolloutTraceRoot;
+  } else {
+    // Never let an ambient CODEX_ROLLOUT_TRACE_ROOT from baseEnv leak into a
+    // spawn that did not explicitly ask for tracing. Tracing is diagnostic
+    // and opt-in per spawn, not an inherited process-wide default.
+    delete nextEnv.CODEX_ROLLOUT_TRACE_ROOT;
+  }
 
   // Test/runtime instrumentation env vars should not leak into the Codex
   // subprocess because model-invoked shell/Node commands inherit them.
@@ -1094,6 +1113,29 @@ export function buildCodexSpawnEnv({
     codexBinary,
     pathExists,
   );
+}
+
+// Opt-in switch for OIX's built-in rollout-trace diagnostic (see
+// `codex-rs/rollout-trace/README.md` upstream). Off by default: bundles can
+// contain full prompts, tool inputs/outputs, and other sensitive session
+// content, and OIX's own docs treat this as diagnostic-only, never uploaded.
+// Set WORKSTATION_ROLLOUT_TRACE=1 in the Workstation *host* process env
+// (not inside the spawned OIX process) to capture a trace bundle per app-server
+// process lifetime under `<codeHome>/rollout-traces/`. Each new thread/session
+// that process starts gets its own `trace-*` subdirectory with a
+// `manifest.json`, `trace.jsonl`, and `payloads/*.json` holding the exact
+// per-attempt request sent to the model provider and the response OIX
+// observed, including token usage and failures. Inspect a bundle with
+// `interpreter debug trace-reduce <bundle-dir>` for a reduced state.json, or
+// read `trace.jsonl` + `payloads/*.json` directly.
+export function resolveRolloutTraceRoot(
+  codeHome: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (env.WORKSTATION_ROLLOUT_TRACE !== "1") {
+    return undefined;
+  }
+  return path.join(codeHome, "rollout-traces");
 }
 
 function resolveCodexRuntimeCacheRoot(homeDir: string): string {
@@ -1607,6 +1649,7 @@ export class StdioJsonRpcTransport implements JsonRpcTransport {
       baseEnv: process.env,
       codeHome,
       codexBinary: appServerBinary,
+      rolloutTraceRoot: resolveRolloutTraceRoot(codeHome),
     });
 
     const child = this.spawnProcess(appServerBinary, args, spawnEnv);
@@ -1678,6 +1721,7 @@ export class StdioJsonRpcTransport implements JsonRpcTransport {
       baseEnv: process.env,
       codeHome,
       codexBinary: interpreterBinary,
+      rolloutTraceRoot: resolveRolloutTraceRoot(codeHome),
     });
 
     const { stdout, stderr } = await execFileAsync(interpreterBinary, args, {

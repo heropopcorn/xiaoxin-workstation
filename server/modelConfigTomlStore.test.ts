@@ -547,4 +547,51 @@ describe('modelConfigTomlStore recovery', () => {
     }
   });
 
+  test('keeps a gateway profile instead of replacing it with hosted fallbacks', () => {
+    // A gateway profile stores only the chosen model. Recovery used to reject
+    // it for having no baseURL or apiKey, delete it, and then substitute the
+    // Interpreter hosted pack — so the model the user picked disappeared on the
+    // next load.
+    const state = buildState([
+      {
+        id: 'custom:gateway',
+        name: 'Online',
+        provider: 'gateway',
+        modelId: 'qwen3.8-max',
+        codexProfileId: 'model-gateway',
+        isBuiltin: false,
+      },
+    ]);
+    const issues: string[] = [];
+
+    const modified = recoverLoadedModelConfigState(state, issues);
+
+    expect(modified).toBe(false);
+    expect(issues).toEqual([]);
+    expect(state.profiles).toMatchObject([
+      {
+        id: 'custom:gateway',
+        provider: 'gateway',
+        modelId: 'qwen3.8-max',
+        codexProfileId: 'model-gateway',
+      },
+    ]);
+  });
+
+  test('drops a gateway profile that never got a model rather than inventing one', () => {
+    const state = buildState([
+      {
+        id: 'custom:gateway-empty',
+        name: 'Online',
+        provider: 'gateway',
+        modelId: '',
+        codexProfileId: 'model-gateway',
+        isBuiltin: false,
+      },
+    ]);
+    const issues: string[] = [];
+
+    expect(recoverLoadedModelConfigState(state, issues)).toBe(true);
+    expect(state.profiles.some((profile) => profile.provider === 'gateway')).toBe(false);
+  });
 });

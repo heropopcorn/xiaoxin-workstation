@@ -2956,6 +2956,13 @@ export const marketingDemoProvidersIpc = {
         : [],
   }),
   setInterpreterModel: async () => ({ success: true as const }),
+  // The demo build has no gateway to reach, and the picker renders an
+  // unconfigured catalog rather than a fabricated model list.
+  listModelGatewayModels: async () => ({
+    configured: false,
+    models: [],
+    fetchedAt: Date.now(),
+  }),
   listInterpreterHarnesses: async () => ({ harnesses: [] }),
   setInterpreterHarness: async () => ({ success: true as const }),
   disconnectOAuth: async () => ({ success: true }),

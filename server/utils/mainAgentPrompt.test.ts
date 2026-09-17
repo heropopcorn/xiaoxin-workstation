@@ -88,7 +88,13 @@ describe('mainAgentPrompt', () => {
     expect(developerPrompt).toContain('builtin-cua-driver launch_app --json');
     expect(developerPrompt).toContain('cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver get_app_state --json');
     expect(developerPrompt).toContain('Use `builtin-cua-driver` through Interpreter\'s normal CLI transport: `interpreter-app tools builtin-cua-driver <tool-name> --json');
-    expect(developerPrompt).toContain('Never use `Start-Process`, shell app launch, raw Windows UI Automation scripts, PowerShell window enumeration, or ad hoc Python as a desktop-control fallback.');
+    expect(developerPrompt).toContain('Never use `Start-Process`, shell app launch, raw Windows UI Automation scripts, PowerShell window enumeration, `Get-Process`, `EnumWindows`, `tasklist`, or ad hoc Python as a desktop-control fallback.');
+    expect(developerPrompt).toContain('Use `list_apps` when the user asks which apps or windows are open');
+    expect(developerPrompt).toContain('Empty sandboxed PowerShell window titles are not a Computer Use failure.');
+    expect(developerPrompt).toContain('Never tell the user to open Task Manager instead.');
+    expect(developerPrompt).toContain('cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver list_apps --json "{}"');
+    expect(developerPrompt).not.toContain('Visible Computer Use tools are named `builtin-cua-driver__list_apps`');
+    expect(developerPrompt).toContain('`computer-use` when the user asks which desktop apps or windows are open');
     expect(developerPrompt).toContain('Do not claim sandboxing blocks computer use unless `builtin-cua-driver` itself reports a sandbox error.');
     expect(developerPrompt).not.toContain('Launch apps with `launch_app`');
     expect(developerPrompt).toContain('The Computer Use tool surface is app-scoped on every supported desktop platform: `list_apps`, `launch_app`, `get_app_state`, `get_ui_elements`, `click`, `drag`, `press_key`, `scroll`, `set_value`, `type_text`, and `perform_secondary_action`.');
@@ -135,9 +141,38 @@ describe('mainAgentPrompt', () => {
     expect(developerPrompt).toContain('This run explicitly injects selected Interpreter app tools to the model as direct MCP tools in addition to the normal CLI path.');
     expect(developerPrompt).toContain('If a needed Interpreter app tool is visibly injected in the top-level tool list, call it directly.');
     expect(developerPrompt).toContain('Otherwise use `interpreter-app`.');
+    expect(developerPrompt).toContain('This run injects Computer Use as top-level tools named `builtin-cua-driver__list_apps`, `builtin-cua-driver__get_app_state`, `builtin-cua-driver__type_text`');
+    expect(developerPrompt).toContain('There is no tool named `list_apps` or `type_text`. Do not say they are missing, unregistered, or CLI-only.');
+    expect(developerPrompt).toContain('This run\'s top-level tool list includes injected Computer Use tools named `builtin-cua-driver__*`. Those names are callable.');
     expect(developerPrompt).toContain('When `builtin-cua-driver__...` tools are visible as top-level tools, use those direct tools for Computer Use.');
-    expect(developerPrompt).toContain('direct `get_app_state` calls deliver screenshots as structured image content.');
+    expect(developerPrompt).toContain('Do not wrap them in shell, PowerShell, `cmd.exe`, or `interpreter-app`.');
+    expect(developerPrompt).toContain('Direct `builtin-cua-driver__get_app_state` calls deliver screenshots as structured image content.');
+    expect(developerPrompt).toContain('immediately call `builtin-cua-driver__list_apps`');
+    expect(developerPrompt).toContain('call the injected `builtin-cua-driver__list_apps` / `__get_app_state` / `__type_text` tools by those exact names');
+    expect(developerPrompt).not.toContain('Top-level tools list does not list individual tools.');
+    expect(developerPrompt).not.toContain('immediately run `list_apps`');
     expect(developerPrompt).not.toContain('Use `builtin-cua-driver` through Interpreter\'s normal CLI transport: `interpreter-app tools builtin-cua-driver <tool-name> --json');
+  });
+
+  test('Windows MCP injection names the exact Computer Use tools and forbids PowerShell fallback', () => {
+    const developerPrompt = getMainAgentDeveloperPrompt(
+      'gpt-5.4-nano',
+      true,
+      '/tmp/headless-cli/interpreter-app',
+      {
+        injectAppToolsAsMcp: true,
+        platform: 'win32',
+      },
+    );
+
+    expect(developerPrompt).toContain('call `builtin-cua-driver__list_apps` if the target app is unclear, then `builtin-cua-driver__get_app_state` with `{"app":"Notepad"}`');
+    expect(developerPrompt).toContain('An already-open Notepad / 记事本 / 文本文档 is an OS window, not Welcome.md.');
+    expect(developerPrompt).toContain('Call `builtin-cua-driver__get_app_state` then `builtin-cua-driver__type_text`.');
+    expect(developerPrompt).toContain('A PowerShell `MainWindowHandle` of 0 is not a reason to stop.');
+    expect(developerPrompt).toContain('Do not wrap them in shell, PowerShell, `cmd.exe`, or `interpreter-app`.');
+    expect(developerPrompt).not.toContain('immediately run `list_apps`');
+    expect(developerPrompt).not.toContain('Top-level tools list does not list individual tools.');
+    expect(developerPrompt).not.toContain('cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver get_app_state');
   });
 
   test('platform-specific shell guidance only includes the current platform branch', () => {
@@ -158,6 +193,8 @@ describe('mainAgentPrompt', () => {
     expect(unixPrompt).toContain('The Computer Use tool surface is app-scoped on every supported desktop platform: `list_apps`, `launch_app`, `get_app_state`, `get_ui_elements`, `click`, `drag`, `press_key`, `scroll`, `set_value`, `type_text`, and `perform_secondary_action`.');
     expect(unixPrompt).toContain('For Electron, Chromium, and web-rendered desktop apps, treat `HTML content`, `webarea`, sparse AX trees, or missing settable fields as ordinary Computer Use state, not as inaccessible content.');
     expect(unixPrompt).toContain('Never use `osascript System Events`, raw AppKit/NSWorkspace, Quartz/CGWindowList, `screencapture`, `open`, or ad hoc Python as a desktop-control fallback.');
+    expect(unixPrompt).toContain("interpreter-app tools builtin-cua-driver list_apps --json '{}'");
+    expect(unixPrompt).toContain('Never tell the user to open Activity Monitor or Task Manager instead.');
     expect(unixPrompt).toContain('If `builtin-cua-driver` reports missing Accessibility or Screen Recording permission');
     expect(unixPrompt).toContain('Do not claim sandboxing blocks computer use unless `builtin-cua-driver` itself reports a sandbox error.');
     expect(unixPrompt).not.toContain('Windows administrator rights are separate from Interpreter sandbox access.');

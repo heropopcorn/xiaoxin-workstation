@@ -1,5 +1,6 @@
 import type { JsonValue } from "../../../server/handlers/codex-generated-types/serde_json/JsonValue";
 import { getInterpreterOpenRouterBaseUrl } from "../../../shared/hostedApi";
+import { getModelGatewayBaseUrl } from "../../../shared/modelGateway";
 import {
   LOCAL_MODEL_PROVIDER_RUNTIMES,
   type LocalModelProviderRuntime,
@@ -27,8 +28,23 @@ export type Profile = {
   readonly modelProvider: string | null;
   readonly model?: string;
   /**
-   * Undefined lets OIX select its recommended provider/model harness. Null
-   * explicitly requests native Codex.
+   * Undefined lets OIX select its recommended provider/model harness by
+   * matching the model/provider name (see
+   * `default_harness_for_provider_model` in OIX's
+   * `model-provider-info` crate). That heuristic fires on substring matches
+   * like "qwen" or "kimi" regardless of which provider/baseURL is actually
+   * configured, and silently swaps in a vendor-CLI persona (fixed system
+   * prompt, fixed tool shaping, no inference tracing) that has nothing to do
+   * with Workstation's own developer instructions or tools.
+   *
+   * Null explicitly requests native Codex and MUST be serialized as the
+   * empty string, not JSON/TOML null: OIX's `Config.harness` field is a
+   * plain `Option<String>`, so a `null` value collapses back to `None` and
+   * still falls through to the auto-detect heuristic above. Only
+   * `Harness::from_config_name(Some(""))` resolves to `Harness::Native`
+   * (see `codex-rs/tools/src/harness.rs`). The serialization boundary in
+   * `codexRuntime.ts` converts `null` -> `""` for this reason; do not send
+   * `harness: null` directly to OIX expecting it to mean "native".
    */
   readonly harness?: string | null;
   readonly providerConfig?: ProviderConfig;
@@ -183,6 +199,38 @@ const INTERPRETER_HOSTED_PROFILE: Profile = {
     },
 };
 
+export const MODEL_GATEWAY_PROVIDER_ID = "model-gateway";
+
+/**
+ * The distribution's own model gateway (see `shared/modelGateway.ts`).
+ *
+ * Deliberately different from the hosted profile above in three ways:
+ *
+ * - `wire_api: "chat"`, because a gateway is a plain Chat Completions endpoint.
+ *   The hosted profile speaks Responses against `{base}/v0/openrouter`.
+ * - No `model`. The gateway owns the catalog, so the runtime resolves the
+ *   default from whatever `GET {base}/models` returns instead of the client
+ *   pinning a model id that the operator cannot change without a release.
+ * - `harness: null` (native). Letting OIX auto-detect would swap in a vendor
+ *   CLI persona whenever a served model id happens to contain a vendor name;
+ *   see the `harness` doc comment above.
+ *
+ * `base_url` is resolved on every read because the environment override is
+ * process state, not build state.
+ */
+const MODEL_GATEWAY_PROFILE: Profile = {
+  id: MODEL_GATEWAY_PROVIDER_ID,
+  label: "Online models",
+  modelProvider: MODEL_GATEWAY_PROVIDER_ID,
+  harness: null,
+  providerConfig: {
+    base_url: getModelGatewayBaseUrl(),
+    name: "Online models",
+    requires_openai_auth: false,
+    wire_api: "chat",
+  },
+};
+
 // Keep the hosted profile definition available for persisted profiles and
 // distribution builds. Community UI surfaces decide whether to offer it based
 // on the configured hosted API; removing the runtime identity would make old
@@ -190,6 +238,7 @@ const INTERPRETER_HOSTED_PROFILE: Profile = {
 export const PROFILES: readonly Profile[] = [
   OPENAI_PROFILE,
   INTERPRETER_HOSTED_PROFILE,
+  MODEL_GATEWAY_PROFILE,
 ];
 
 export function getProfile(id: ProfileId): Profile {
@@ -204,6 +253,16 @@ export function getProfile(id: ProfileId): Profile {
       providerConfig: {
         ...profile.providerConfig,
         base_url: getInterpreterBaseUrl(),
+      },
+    };
+  }
+
+  if (id === MODEL_GATEWAY_PROVIDER_ID && profile.providerConfig) {
+    return {
+      ...profile,
+      providerConfig: {
+        ...profile.providerConfig,
+        base_url: getModelGatewayBaseUrl(),
       },
     };
   }
@@ -264,6 +323,13 @@ export function buildProfileFromPreset(
     label: preset.label,
     modelProvider,
     model,
+    // Force native Codex shaping by default. Without this, OIX's
+    // model-name harness auto-detect (see the `harness` doc comment above)
+    // can silently swap in a vendor-CLI persona for local/custom presets
+    // whose user-picked model name happens to match a known vendor (e.g.
+    // any "qwen*" Ollama model), dropping Workstation's own developer
+    // instructions and tool shaping with no error or trace.
+    harness: null,
     providerConfig: baseUrl
         ? {
           base_url: baseUrl,

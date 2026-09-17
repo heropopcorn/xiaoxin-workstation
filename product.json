@@ -35,6 +35,7 @@
 	"distribution": {
 		"id": "community",
 		"hostedApiBaseUrl": "",
+		"modelGatewayBaseUrl": "",
 		"auth": {
 			"provider": "none",
 			"url": "",

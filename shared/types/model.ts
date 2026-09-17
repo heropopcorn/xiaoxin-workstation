@@ -27,13 +27,14 @@ const DEEPSEEK_MODEL_OPTIONS = [
  * Model provider type - what kind of provider is this
  *
  * - 'hosted' = Our hosted service
+ * - 'gateway' = Distribution-operated model gateway (operator owns endpoint and catalog)
  * - 'local' = Local runtime (Ollama or LM Studio)
  * - 'openai-oauth' = OpenAI via OAuth (sign in with ChatGPT)
  * - 'agent' = CLI agent (Claude Code) - modelId selects which
  * - 'api' = Custom API (Anthropic, OpenAI, Groq, OpenRouter, etc.)
  * - 'terminal' = Terminal-based agents (runs in PTY)
  */
-export type ModelProvider = 'hosted' | 'local' | 'openai-oauth' | 'agent' | 'api' | 'terminal';
+export type ModelProvider = 'hosted' | 'gateway' | 'local' | 'openai-oauth' | 'agent' | 'api' | 'terminal';
 
 export type WireApi = 'responses' | 'chat' | 'messages';
 

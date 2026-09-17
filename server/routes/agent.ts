@@ -684,7 +684,7 @@ router.post('/chat/stream', async (req: Request, res: Response) => {
   body = req.body;
   request = normalizeStreamRequestBody(body);
   console.log(
-    `[AGENT] turn_start selection=${request.selection} profileId=${request.selection === 'stored-profile' ? request.profileId : 'none'} agentId=${request.agentId ?? 'none'} threadId=${request.threadId ?? 'new'} model=${request.model ?? 'default'} attachmentCount=${request.attachments.length} skillCount=${request.skills.length}`,
+    `[AGENT] turn_start selection=${request.selection} profileId=${request.selection === 'stored-profile' ? request.profileId : 'none'} agentId=${request.agentId ?? 'none'} threadId=${request.threadId ?? 'new'} model=${request.model ?? 'default'} attachmentCount=${request.attachments.length} explicitSkillCount=${request.skills.length}`,
   );
 
   const rawMessage = request.message?.trim();

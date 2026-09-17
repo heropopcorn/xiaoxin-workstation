@@ -21,6 +21,7 @@ import {
 import { isBuiltinProfile } from '../shared/types/profile';
 import { isValidHostedModelId } from '../shared/utils/modelIdValidation';
 import { inferProfileIdFromEndpoint } from '../src/lib/codex/profile-options';
+import { MODEL_GATEWAY_PROVIDER_ID } from '../src/lib/codex/profiles';
 import { getCodexClient } from './utils/codexServiceBridge';
 
 const MODEL_CONFIG_SECTION_KEY = 'interpreter_app';
@@ -301,6 +302,8 @@ function isNestedModelValid(model: ModelConfig | undefined, providers: Record<st
       const modelId = trimToUndefined(model.modelId);
       return Boolean(modelId && isValidHostedModelId(modelId));
     }
+    case 'gateway':
+      return Boolean(trimToUndefined(model.modelId));
     case 'openai-oauth':
       return Boolean(trimToUndefined(model.modelId));
     case 'local': {
@@ -335,6 +338,12 @@ function isProfileValid(profile: Profile, providers: Record<string, Provider>): 
       const modelId = trimToUndefined(profile.modelId);
       return Boolean(modelId && isValidHostedModelId(modelId));
     }
+    // A gateway profile stores nothing but the chosen model: the endpoint comes
+    // from the product overlay and the upstream credential never reaches disk.
+    // There is also no local id allowlist to check against, because the valid
+    // ids are whatever the operator currently serves.
+    case 'gateway':
+      return Boolean(trimToUndefined(profile.modelId));
     case 'openai-oauth':
       return Boolean(trimToUndefined(profile.modelId));
     case 'local': {
@@ -401,6 +410,16 @@ function repairNestedModel(
       return {
         provider: 'hosted',
         providerId: BUILTIN_PROVIDER_IDS.HOSTED,
+        modelId,
+      };
+    }
+    case 'gateway': {
+      const modelId = trimToUndefined(model.modelId);
+      if (!modelId) {
+        return undefined;
+      }
+      return {
+        provider: 'gateway',
         modelId,
       };
     }
@@ -515,6 +534,29 @@ function repairProfile(profile: Profile, providers: Record<string, Provider>): P
         apiFormat: undefined,
         codexProfileId: undefined,
         providerConfig: undefined,
+        wireApi: undefined,
+        useResponsesApi: undefined,
+      };
+    }
+    case 'gateway': {
+      const modelId = trimToUndefined(profile.modelId);
+      if (!modelId) {
+        return null;
+      }
+
+      return {
+        ...profile,
+        provider: 'gateway',
+        // No builtin provider id: the gateway is not one of the app's builtin
+        // providers, it is whatever endpoint the distribution operates.
+        providerId: undefined,
+        modelId,
+        apiKey: undefined,
+        baseURL: undefined,
+        apiFormat: undefined,
+        codexProfileId: MODEL_GATEWAY_PROVIDER_ID,
+        providerConfig: undefined,
+        // wire_api lives on the runtime profile (chat), not on the stored profile.
         wireApi: undefined,
         useResponsesApi: undefined,
       };

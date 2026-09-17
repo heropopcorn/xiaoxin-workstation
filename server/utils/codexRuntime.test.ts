@@ -1512,15 +1512,29 @@ describe('runCodexAgentTurn overlay continuation', () => {
     expect(runTurnCalls[0]?.developerInstructions).toContain('repo-review');
   });
 
-  test('does not inject interpreter app tools as direct MCP tools by default', async () => {
-    const runTurnCalls: Array<{ config: Record<string, any> | null | undefined }> = [];
+  test('attaches the Workstation computer-use skill as a native desktop base workflow', async () => {
+    const runTurnCalls: Array<{ skills: unknown }> = [];
     const fakeService = {
+      async listSkills() {
+        return {
+          data: [{
+            cwd: '/tmp',
+            skills: [{
+              name: 'computer-use',
+              description: 'Control desktop GUI through the bundled driver.',
+              path: '/home/user/.openinterpreter/skills/computer-use/SKILL.md',
+              scope: 'user',
+              enabled: true,
+            }],
+          }],
+        };
+      },
       async ensureProvider() {},
       async runTurn(options: any) {
-        runTurnCalls.push({ config: options.config });
+        runTurnCalls.push({ skills: options.skills });
         return {
-          threadId: 'thread-mcp-1',
-          turnId: 'turn-mcp-1',
+          threadId: 'thread-base-skill-1',
+          turnId: 'turn-base-skill-1',
           status: 'completed',
         };
       },
@@ -1532,22 +1546,135 @@ describe('runCodexAgentTurn overlay continuation', () => {
         modelProvider: 'openai',
         model: 'gpt-5.4',
       } as any,
-      workspacePath: '/tmp/workspace',
-      message: 'Update the spreadsheet.',
+      workspacePath: '/tmp',
+      message: 'Do the task.',
       binding: {
-        agentId: 'agent-tab-123',
-        callerToken: 'agtok_test_mcp',
-        workspacePath: '/tmp/workspace',
-        allowedToolNames: ['builtin-cells__read_spreadsheet', 'builtin-cells__write_data_to_excel'],
-        toolProfileId: 'benchmark:run-main',
+        agentId: 'base-skill-agent-test-1',
       },
     });
+
+    expect(runTurnCalls).toHaveLength(1);
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      expect(runTurnCalls[0]?.skills).toEqual([{
+        id: 'main-agent-base:computer-use:/home/user/.openinterpreter/skills/computer-use/SKILL.md',
+        label: 'computer-use',
+        name: 'computer-use',
+        path: '/home/user/.openinterpreter/skills/computer-use/SKILL.md',
+      }]);
+    } else {
+      expect(runTurnCalls[0]?.skills).toBeUndefined();
+    }
+  });
+
+  test('does not auto-attach a repository skill that shadows computer-use', async () => {
+    const runTurnCalls: Array<{ skills: unknown }> = [];
+    const fakeService = {
+      async listSkills() {
+        return {
+          data: [{
+            cwd: '/tmp',
+            skills: [{
+              name: 'computer-use',
+              description: 'Repository-local shadow.',
+              path: '/tmp/.agents/skills/computer-use/SKILL.md',
+              scope: 'repo',
+              enabled: true,
+            }],
+          }],
+        };
+      },
+      async ensureProvider() {},
+      async runTurn(options: any) {
+        runTurnCalls.push({ skills: options.skills });
+        return {
+          threadId: 'thread-shadow-skill-1',
+          turnId: 'turn-shadow-skill-1',
+          status: 'completed',
+        };
+      },
+    } as any;
+
+    await runCodexAgentTurn({
+      service: fakeService,
+      profile: {
+        modelProvider: 'openai',
+        model: 'gpt-5.4',
+      } as any,
+      workspacePath: '/tmp',
+      message: 'Do the task.',
+      binding: {
+        agentId: 'shadow-skill-agent-test-1',
+      },
+    });
+
+    expect(runTurnCalls).toEqual([{ skills: undefined }]);
+  });
+
+  test('does not inject interpreter app tools as direct MCP tools by default', async () => {
+    const originalAgentLogging = (globalThis as any).__agentLogging;
+    let misleadingModelToolLogCount = 0;
+    const runTurnCalls: Array<{
+      config: Record<string, any> | null | undefined;
+      developerInstructions?: string;
+    }> = [];
+    const fakeService = {
+      async ensureProvider() {},
+      async runTurn(options: any) {
+        runTurnCalls.push({
+          config: options.config,
+          developerInstructions: options.developerInstructions,
+        });
+        return {
+          threadId: 'thread-mcp-1',
+          turnId: 'turn-mcp-1',
+          status: 'completed',
+        };
+      },
+    } as any;
+
+    (globalThis as any).__agentLogging = {
+      logTools() {
+        misleadingModelToolLogCount += 1;
+      },
+      logEvent() {},
+    };
+
+    try {
+      await runCodexAgentTurn({
+        service: fakeService,
+        profile: {
+          modelProvider: 'openai',
+          model: 'gpt-5.4',
+        } as any,
+        workspacePath: '/tmp/workspace',
+        message: 'Update the spreadsheet.',
+        binding: {
+          agentId: 'agent-tab-123',
+          callerToken: 'agtok_test_mcp',
+          workspacePath: '/tmp/workspace',
+          allowedToolNames: ['builtin-cells__read_spreadsheet', 'builtin-cells__write_data_to_excel'],
+          toolProfileId: 'benchmark:run-main',
+        },
+      });
+    } finally {
+      (globalThis as any).__agentLogging = originalAgentLogging;
+    }
 
     expect(runTurnCalls).toHaveLength(1);
     expect(runTurnCalls[0]?.config?.mcp_servers?.interpreter).toBeUndefined();
     expect(runTurnCalls[0]?.config?.shell_environment_policy?.set?.INTERPRETER_CLI_PATH).toBeString();
     expect(runTurnCalls[0]?.config?.shell_environment_policy?.set?.INTERPRETER_CLI_SERVER_CONNECTION)
       .toStartWith(process.platform === 'win32' ? 'http:' : 'file:');
+    expect(runTurnCalls[0]?.developerInstructions).toContain(
+      'In this app, Interpreter workstation tools are CLI-only for the model by default.',
+    );
+    expect(runTurnCalls[0]?.developerInstructions).not.toContain(
+      'This run explicitly injects selected Interpreter app tools to the model as direct MCP tools',
+    );
+    expect(runTurnCalls[0]?.developerInstructions).not.toContain(
+      'This run injects Computer Use as top-level tools',
+    );
+    expect(misleadingModelToolLogCount).toBe(0);
   });
 
   test('strips caller-provided direct MCP servers from agent turn config', async () => {
@@ -1666,6 +1793,51 @@ describe('runCodexAgentTurn overlay continuation', () => {
 
     expect(runTurnCalls).toHaveLength(1);
     expect(runTurnCalls[0]?.config).not.toHaveProperty('harness');
+  });
+
+  test('sends a native harness request as the empty string, never as null', async () => {
+    const runTurnCalls: Array<{ config: Record<string, any> | null | undefined }> = [];
+    const fakeService = {
+      async ensureProvider() {},
+      async runTurn(options: any) {
+        runTurnCalls.push({ config: options.config });
+        return {
+          threadId: 'thread-native-harness-2',
+          turnId: 'turn-native-harness-2',
+          status: 'completed',
+        };
+      },
+    } as any;
+
+    await runCodexAgentTurn({
+      service: fakeService,
+      profile: {
+        modelProvider: 'custom',
+        // A model id containing a vendor name is what triggers OIX's harness
+        // auto-detect, so it is the case that must not silently regress.
+        model: 'qwen3.5-72b',
+        harness: null,
+        providerConfig: {
+          base_url: 'https://gateway.example.com/llm-gateway/v1',
+          name: 'Custom Endpoint',
+          requires_openai_auth: false,
+          wire_api: 'chat',
+        },
+      } as any,
+      workspacePath: '/tmp/workspace',
+      message: 'Hello',
+      binding: {
+        agentId: 'agent-tab-native-harness-2',
+        callerToken: 'agtok_native_harness_2',
+        workspacePath: '/tmp/workspace',
+      },
+    });
+
+    expect(runTurnCalls).toHaveLength(1);
+    // OIX's `Config.harness` is `Option<String>`: a JSON null collapses to
+    // `None` and re-triggers auto-detect, so only `""` means native.
+    expect(runTurnCalls[0]?.config?.harness).toBe('');
+    expect(runTurnCalls[0]?.config?.harness).not.toBeNull();
   });
 
   test('forces ChatGPT auth for OpenAI OAuth turns', async () => {

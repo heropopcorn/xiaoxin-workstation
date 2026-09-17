@@ -480,6 +480,10 @@ const handlers: Record<string, Record<string, HandlerFn>> = {
       const { listInterpreterModels } = await import('../handlers/providers');
       return listInterpreterModels(providerId, includeHidden);
     },
+    listModelGatewayModels: async () => {
+      const { listModelGatewayModels } = await import('../handlers/modelGateway');
+      return listModelGatewayModels();
+    },
     setInterpreterModel: async ([model, reasoningEffort, profile]: [
       string,
       v2.InterpreterModelSetParams["reasoningEffort"]?,

@@ -85,4 +85,27 @@ describe('buildProviderMenuEntries', () => {
     });
     expect(entry?.isDocumentedFallback).not.toBe(true);
   });
+
+  test('offers the model gateway only when the build has one', () => {
+    const withoutGateway = buildProviderMenuEntries([])
+      .filter((entry) => entry.appProviderType === 'gateway');
+    expect(withoutGateway).toEqual([]);
+
+    const withGateway = buildProviderMenuEntries([], { includeModelGateway: true })
+      .filter((entry) => entry.appProviderType === 'gateway');
+    expect(withGateway).toHaveLength(1);
+    expect(withGateway[0]).toMatchObject({
+      oixProviderId: '__app:model-gateway',
+      configured: true,
+    });
+  });
+
+  test('never presents the gateway as a runtime provider id', () => {
+    // '__app:*' ids must not reach the app-server; the gateway entry is app-only
+    // by construction because the runtime cannot enumerate an operator service.
+    const gateway = buildProviderMenuEntries([], { includeModelGateway: true })
+      .find((entry) => entry.appProviderType === 'gateway');
+    expect(gateway?.oixProviderId.startsWith('__app:')).toBe(true);
+    expect(profileToOixProviderId(profile({ provider: 'gateway' }))).toBeUndefined();
+  });
 });

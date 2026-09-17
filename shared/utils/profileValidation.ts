@@ -34,6 +34,9 @@ export function getMissingProfileFields(profile: Profile, envApiKeys: EnvApiKeys
 
   switch (profile.provider) {
     case 'hosted':
+    // A gateway profile needs a model and nothing else: the operator owns the
+    // endpoint, and the upstream credential never reaches the client.
+    case 'gateway':
     case 'local':
     case 'openai-oauth':
     case 'agent':

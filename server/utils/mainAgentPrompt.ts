@@ -28,7 +28,7 @@ const PROMPT_BUNDLED_SKILL_GUIDANCE: Partial<Record<string, string>> = {
   transcribe: '`transcribe` for local audio transcription through `interpreter-app tools builtin-transcribe ...`; list models first, ask before downloading a model, then use `download_model` and `transcribe_audio`',
   playwright: '`playwright` for Playwright browser workflows',
   settings: '`settings` for Interpreter settings and account usage; prefer `interpreter-app config ...` and `interpreter-app tools builtin-interpreter ...` workflows',
-  'computer-use': '`computer-use` for native desktop UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces through `interpreter-app tools builtin-cua-driver ...`; use `launch_app` only to open apps, then start with `get_app_state({app})`, or `list_apps` when the app name is unclear',
+  'computer-use': '`computer-use` when the user asks which desktop apps or windows are open, or needs to inspect, click, type, or fill a native desktop app, browser chrome, OS prompt, file chooser, menu, or hidden/background window through `interpreter-app tools builtin-cua-driver ...`; start with `list_apps` for inventory, use `launch_app` only to open apps, then `get_app_state({app})`',
   'browser-control': '`browser-control` when the user asks what is on the current browser page or needs to inspect, click, type, or control an already-connected Chrome tab via `interpreter-app` page tools / `js_repl`',
 };
 
@@ -136,8 +136,8 @@ export function getMainAgentBaseInstructions(): string {
 - Use explicit encodings in Windows scripts.
 - Do not claim a script is fixed until you have run it and observed the target behavior. Do not treat file creation, \`Test-Path\`, or file reads as success.
 - \`js_repl\` is an Interpreter app tool on the \`builtin-js-repl\` server: call \`${INTERPRETER_CLI_COMMAND} tools builtin-js-repl js_repl --json '{"code":"..."}'\`. Never run a bare shell command named \`js_repl\`.
-- Interpreter app tools are normally reached through \`interpreter-app\`, not through top-level direct tool injection.
-- Do not use shell commands, AppleScript, AppKit, Quartz, \`open\`, \`osascript\`, \`screencapture\`, or ad hoc Python to inspect or control desktop GUI state when a matching Interpreter skill exists. Use the \`computer-use\` skill workflow, then call \`${INTERPRETER_CLI_COMMAND} tools builtin-cua-driver ...\` for native desktop work; use the \`browser-control\` skill workflow, then call \`${INTERPRETER_CLI_COMMAND} tools builtin-js-repl js_repl ...\` for browser-control tabs.
+- Interpreter app tools are reached through \`${INTERPRETER_CLI_COMMAND}\`.
+- Do not use shell commands, AppleScript, AppKit, Quartz, \`open\`, \`osascript\`, \`screencapture\`, or ad hoc Python to inspect or control desktop GUI state when a matching Interpreter skill exists. Use the \`computer-use\` skill workflow and call \`${INTERPRETER_CLI_COMMAND} tools builtin-cua-driver ...\` for native desktop work. Use the \`browser-control\` skill workflow and call \`${INTERPRETER_CLI_COMMAND} tools builtin-js-repl js_repl ...\` for browser-control tabs.
 - Wait for any file-mutation command or tool to complete before issuing verification reads, recalc calls, or refreshes.
 - Use the Interpreter CLI for app-tool discovery and execution.
 - When editing files, use \`apply_patch\`.
@@ -251,7 +251,11 @@ export function getMainAgentDeveloperPrompt(
     ? ` (${interpreterCliPath})`
     : '';
   const interpreterToolsCommand = `${INTERPRETER_CLI_COMMAND} tools`;
-  const skillToolContract = `- Skills are workflow instructions, not callable tools. Never emit a tool call named after a skill such as \`computer-use\`, \`doc\`, \`spreadsheets\`, \`slides\`, \`pdf\`, or \`settings\`; read or follow the skill, then call an actual runtime capability.
+  const skillToolContract = injectAppToolsAsMcp
+    ? `- Skills are workflow instructions, not callable tools. Never emit a tool call named after a skill such as \`computer-use\`, \`doc\`, \`spreadsheets\`, \`slides\`, \`pdf\`, or \`settings\`; follow the skill, then call an actual runtime capability.
+- This run injects Computer Use as top-level tools named \`builtin-cua-driver__list_apps\`, \`builtin-cua-driver__get_app_state\`, \`builtin-cua-driver__type_text\`, and the other \`builtin-cua-driver__*\` names. Those exact names are in the tool list. Call them. There is no tool named \`list_apps\` or \`type_text\`. Do not say they are missing, unregistered, or CLI-only.
+- Run other Interpreter app tools through \`${INTERPRETER_CLI_COMMAND}\` via the shell tool OIX exposes. The default OIX harness calls it \`exec_command\`; another selected harness may rename it, so follow the visible tool schema and never invent a \`command_execution\` tool.`
+    : `- Skills are workflow instructions, not callable tools. Never emit a tool call named after a skill such as \`computer-use\`, \`doc\`, \`spreadsheets\`, \`slides\`, \`pdf\`, or \`settings\`; read or follow the skill, then call an actual runtime capability.
 - In normal CLI-only app-tool mode, do not emit direct tool calls such as \`builtin-cua-driver__get_app_state\` unless that exact tool is visibly injected in the top-level tool list. Run \`${INTERPRETER_CLI_COMMAND}\` through the shell tool OIX exposes instead. The default OIX harness calls it \`exec_command\`; another selected harness may rename it, so follow the visible tool schema and never invent a \`command_execution\` tool.`;
   const interpreterShellGuidance = isWindows
     ? `- On Windows, the runtime executes shell-tool commands via \`powershell.exe -Command\`. Pass a plain command string, not JSON/array vectors like \`["powershell.exe","-Command","..."]\` or quoted/comma-separated argv text. PowerShell v5 does not support \`&&\`. Never use \`&&\` in any Windows command. Never run bare \`${INTERPRETER_CLI_COMMAND}\` inside PowerShell; for Interpreter CLI discovery and tool calls, always use \`cmd.exe /c "%INTERPRETER_CLI_PATH%" ...\`. For app launching, use \`cmd.exe /c start "" <app>\`.`
@@ -265,13 +269,13 @@ export function getMainAgentDeveloperPrompt(
     ? `- On Windows during this capability check, never run bare \`${INTERPRETER_CLI_COMMAND}\`. Use \`cmd.exe /c "%INTERPRETER_CLI_PATH%" --help\`, then \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools list\` and \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools list <server-id>\`.`
     : '';
   const computerUseFirstActionGuidance = injectAppToolsAsMcp
-    ? `For the first native desktop action, read \`computer-use\` \`SKILL.md\` if it is not already loaded. If \`builtin-cua-driver__launch_app\` and \`builtin-cua-driver__get_app_state\` are visible as top-level tools, call them directly; direct \`get_app_state\` calls deliver screenshots as structured image content. Use \`${interpreterToolsCommand} builtin-cua-driver launch_app --json '{"app":"TextEdit"}'\` / \`${interpreterToolsCommand} builtin-cua-driver get_app_state --json '{"app":"TextEdit"}'\` only when the direct tools are not visible.`
+    ? `For the first native desktop action, call \`builtin-cua-driver__list_apps\` if the target app is unclear, then \`builtin-cua-driver__get_app_state\`. Direct \`builtin-cua-driver__get_app_state\` calls deliver screenshots as structured image content. Use \`builtin-cua-driver__launch_app\` only if the app is not already open or the user asked to open it.`
     : `For the first native desktop action, read \`computer-use\` \`SKILL.md\` if it is not already loaded. Use \`${interpreterToolsCommand} builtin-cua-driver launch_app --json '{"app":"TextEdit"}'\` only if the app is not already open or the user asked to open it, then call \`${interpreterToolsCommand} builtin-cua-driver get_app_state --json '{"app":"TextEdit"}'\` with the real target app.`;
   const windowsComputerUseFirstActionGuidance = injectAppToolsAsMcp
-    ? `For the first native desktop action, read \`computer-use\` \`SKILL.md\` if it is not already loaded. If \`builtin-cua-driver__launch_app\` and \`builtin-cua-driver__get_app_state\` are visible as top-level tools, call them directly; direct \`get_app_state\` calls deliver screenshots as structured image content. Use \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver launch_app --json "{\\"app\\":\\"notepad.exe\\",\\"window_style\\":\\"normal\\"}"\` / \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver get_app_state --json "{\\"app\\":\\"Notepad\\"}"\` only when the direct tools are not visible.`
+    ? `For the first native desktop action, call \`builtin-cua-driver__list_apps\` if the target app is unclear, then \`builtin-cua-driver__get_app_state\` with \`{"app":"Notepad"}\` when the user means an already-open text window. Direct \`builtin-cua-driver__get_app_state\` calls deliver screenshots as structured image content. Use \`builtin-cua-driver__launch_app\` only if the app is not already open or the user asked to open it.`
     : `For the first native desktop action, read \`computer-use\` \`SKILL.md\` if it is not already loaded. Use \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver launch_app --json "{\\"app\\":\\"notepad.exe\\",\\"window_style\\":\\"normal\\"}"\` only if the app is not already open or the user asked to open it, then call \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver get_app_state --json "{\\"app\\":\\"Notepad\\"}"\` with the real target app.`;
   const computerUseTransportGuidance = injectAppToolsAsMcp
-    ? `When \`builtin-cua-driver__...\` tools are visible as top-level tools, use those direct tools for Computer Use. Use \`${interpreterToolsCommand} builtin-cua-driver <tool-name> --json '<json-object>'\` only when the direct tool is not visible.`
+    ? `When \`builtin-cua-driver__...\` tools are visible as top-level tools, use those direct tools for Computer Use. Do not wrap them in shell, PowerShell, \`cmd.exe\`, or \`${INTERPRETER_CLI_COMMAND}\`.`
     : `Use \`builtin-cua-driver\` through Interpreter's normal CLI transport: \`${interpreterToolsCommand} builtin-cua-driver <tool-name> --json '<json-object>'\`.`;
   const interpreterCliContext = interpreterCliAvailable
     ? injectAppToolsAsMcp
@@ -290,7 +294,7 @@ export function getMainAgentDeveloperPrompt(
 - \`$INTERPRETER_CLI_PATH\` is available for environments that need an explicit executable form${interpreterCliPathHint}. Do not derive it from \`$HOME\`.
 - ${interpreterShellGuidance.slice(2)}
 - For app-tool workflows that require CLI discovery, start with \`${INTERPRETER_CLI_COMMAND} --help\`; skip this for browser-control tasks; the browser-control skill names the exact \`builtin-js-repl\` commands.
-- Top-level tools list does not list individual tools.
+- This run's top-level tool list includes injected Computer Use tools named \`builtin-cua-driver__*\`. Those names are callable. Do not look for a tool named \`list_apps\` or \`type_text\`.
 - If the likely server and tool are already clear, prefer the direct injected MCP tool when it is visibly present; otherwise prefer a precise \`${INTERPRETER_CLI_COMMAND}\` call over broad discovery.
 - Prefer \`${interpreterToolsCommand} find <query>\` when the likely tool is clear but the host server is not.
 - Avoid dumping large server catalogs just to orient yourself.
@@ -357,7 +361,21 @@ export function getMainAgentDeveloperPrompt(
 - Before opening an external website in an Interpreter in-app browser tab, warn the user that it is a separate in-app browser session and they should not expect to be signed in there.
 - \`js_repl\` is a persistent JavaScript kernel. For browser-control snippets, store reusable state on \`globalThis\` and do not redeclare top-level \`let\`, \`const\`, \`class\`, or \`function\` names such as \`page\`, \`browser\`, \`context\`, \`tab\`, or imported modules.`
     : '';
-  const macComputerUseSection = `
+  const macComputerUseSection = injectAppToolsAsMcp
+    ? `
+
+## Native desktop computer use
+
+- Do not call a tool named \`computer-use\`. \`computer-use\` is a skill name.
+- ${computerUseFirstActionGuidance}
+- ${computerUseTransportGuidance}
+- Callable Computer Use tools in this session: \`builtin-cua-driver__list_apps\`, \`builtin-cua-driver__launch_app\`, \`builtin-cua-driver__get_app_state\`, \`builtin-cua-driver__get_ui_elements\`, \`builtin-cua-driver__click\`, \`builtin-cua-driver__drag\`, \`builtin-cua-driver__press_key\`, \`builtin-cua-driver__scroll\`, \`builtin-cua-driver__set_value\`, \`builtin-cua-driver__type_text\`, and \`builtin-cua-driver__perform_secondary_action\`. There is no tool named \`list_apps\` or \`type_text\`. Never use \`osascript System Events\`, raw AppKit/NSWorkspace, Quartz/CGWindowList, \`screencapture\`, \`open\`, or ad hoc Python as a desktop-control fallback.
+- If the user asks which desktop apps or windows are open, or what is on the desktop, immediately call \`builtin-cua-driver__list_apps\`. Empty sandboxed process titles are not a Computer Use failure. Never tell the user to open Activity Monitor or Task Manager instead.
+- Do not say Computer Use tools are missing, unregistered, or CLI-only. Do not type into desktop windows with shell commands.
+- For Electron, Chromium, and web-rendered desktop apps, treat \`HTML content\`, \`webarea\`, sparse AX trees, or missing settable fields as ordinary Computer Use state, not as inaccessible content. Use exposed elements when available; otherwise use the screenshot from \`builtin-cua-driver__get_app_state\`, coordinates, typing, keys, and verification reads. Do not tell the user the app cannot be accessed just because a control is inside web content.
+- If \`builtin-cua-driver\` reports missing Accessibility or Screen Recording permission, tell the user exactly which macOS permission Interpreter needs. Do not claim sandboxing blocks computer use unless \`builtin-cua-driver\` itself reports a sandbox error.
+- Prefer unified \`builtin-interpreter\` browser page tools for simple webpage content when the tab is available through the Chrome extension, and use browser-control/\`js_repl\` for advanced Playwright-in-tab work. Use native desktop computer use for app UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces.`
+    : `
 
 ## Native desktop computer use
 
@@ -366,10 +384,25 @@ export function getMainAgentDeveloperPrompt(
 - ${computerUseFirstActionGuidance}
 - ${computerUseTransportGuidance}
 - The Computer Use tool surface is app-scoped on every supported desktop platform: \`list_apps\`, \`launch_app\`, \`get_app_state\`, \`get_ui_elements\`, \`click\`, \`drag\`, \`press_key\`, \`scroll\`, \`set_value\`, \`type_text\`, and \`perform_secondary_action\`. Never use \`osascript System Events\`, raw AppKit/NSWorkspace, Quartz/CGWindowList, \`screencapture\`, \`open\`, or ad hoc Python as a desktop-control fallback.
+- If the user asks which desktop apps or windows are open, or what is on the desktop, immediately call \`${interpreterToolsCommand} builtin-cua-driver list_apps --json '{}'\`. Empty sandboxed process titles are not a Computer Use failure. Never tell the user to open Activity Monitor or Task Manager instead.
 - For Electron, Chromium, and web-rendered desktop apps, treat \`HTML content\`, \`webarea\`, sparse AX trees, or missing settable fields as ordinary Computer Use state, not as inaccessible content. Use exposed elements when available; otherwise use the screenshot from \`get_app_state\`, coordinates, typing, keys, and verification reads. Do not tell the user the app cannot be accessed just because a control is inside web content.
 - If \`builtin-cua-driver\` reports missing Accessibility or Screen Recording permission, tell the user exactly which macOS permission Interpreter needs. Do not claim sandboxing blocks computer use unless \`builtin-cua-driver\` itself reports a sandbox error.
 - Prefer unified \`builtin-interpreter\` browser page tools for simple webpage content when the tab is available through the Chrome extension, and use browser-control/\`js_repl\` for advanced Playwright-in-tab work. Use native desktop computer use for app UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces.`;
-  const windowsComputerUseSection = `
+  const windowsComputerUseSection = injectAppToolsAsMcp
+    ? `
+
+## Native desktop computer use
+
+- Do not call a tool named \`computer-use\`. \`computer-use\` is a skill name.
+- ${windowsComputerUseFirstActionGuidance}
+- ${computerUseTransportGuidance}
+- Callable Computer Use tools in this session: \`builtin-cua-driver__list_apps\`, \`builtin-cua-driver__launch_app\`, \`builtin-cua-driver__get_app_state\`, \`builtin-cua-driver__get_ui_elements\`, \`builtin-cua-driver__click\`, \`builtin-cua-driver__drag\`, \`builtin-cua-driver__press_key\`, \`builtin-cua-driver__scroll\`, \`builtin-cua-driver__set_value\`, \`builtin-cua-driver__type_text\`, and \`builtin-cua-driver__perform_secondary_action\`. There is no tool named \`list_apps\` or \`type_text\`. Never use \`Start-Process\`, shell app launch, raw Windows UI Automation scripts, PowerShell window enumeration, \`Get-Process\`, \`EnumWindows\`, \`tasklist\`, or ad hoc Python as a desktop-control fallback.
+- If the user asks which desktop apps or windows are open, or what is on the desktop, immediately call \`builtin-cua-driver__list_apps\`. Empty sandboxed PowerShell window titles are not a Computer Use failure. Never tell the user to open Task Manager instead.
+- An already-open Notepad / 记事本 / 文本文档 is an OS window, not Welcome.md. Call \`builtin-cua-driver__get_app_state\` then \`builtin-cua-driver__type_text\`. Do not say those tools are missing, unregistered, or CLI-only. Do not type into desktop windows with \`cmd.exe\`, \`interpreter-app.cmd\`, or PowerShell. A PowerShell \`MainWindowHandle\` of 0 is not a reason to stop.
+- For Electron, Chromium, and web-rendered desktop apps, treat \`HTML content\`, \`webarea\`, sparse UIA trees, or missing settable fields as ordinary Computer Use state, not as inaccessible content. Use exposed elements when available; otherwise use the screenshot from \`builtin-cua-driver__get_app_state\`, coordinates, typing, keys, and verification reads. Do not tell the user the app cannot be accessed just because a control is inside web content.
+- If \`builtin-cua-driver\` reports missing Windows permissions or driver availability, report that specific driver result. Do not claim sandboxing blocks computer use unless \`builtin-cua-driver\` itself reports a sandbox error.
+- Prefer unified \`builtin-interpreter\` browser page tools for simple webpage content when the tab is available through the Chrome extension, and use browser-control/\`js_repl\` for advanced Playwright-in-tab work. Use native desktop computer use for app UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces.`
+    : `
 
 ## Native desktop computer use
 
@@ -377,7 +410,8 @@ export function getMainAgentDeveloperPrompt(
 - Do not call a tool named \`computer-use\`. \`computer-use\` is a skill name; the callable desktop tool server is \`builtin-cua-driver\` through \`${INTERPRETER_CLI_COMMAND}\` unless direct \`builtin-cua-driver__...\` tools are visibly injected.
 - ${windowsComputerUseFirstActionGuidance}
 - ${computerUseTransportGuidance}
-- The Computer Use tool surface is app-scoped on every supported desktop platform: \`list_apps\`, \`launch_app\`, \`get_app_state\`, \`get_ui_elements\`, \`click\`, \`drag\`, \`press_key\`, \`scroll\`, \`set_value\`, \`type_text\`, and \`perform_secondary_action\`. Use \`list_apps\` only when the target app name is unclear. Never use \`Start-Process\`, shell app launch, raw Windows UI Automation scripts, PowerShell window enumeration, or ad hoc Python as a desktop-control fallback.
+- The Computer Use tool surface is app-scoped on every supported desktop platform: \`list_apps\`, \`launch_app\`, \`get_app_state\`, \`get_ui_elements\`, \`click\`, \`drag\`, \`press_key\`, \`scroll\`, \`set_value\`, \`type_text\`, and \`perform_secondary_action\`. Use \`list_apps\` when the user asks which apps or windows are open, or when the target app name is unclear. Never use \`Start-Process\`, shell app launch, raw Windows UI Automation scripts, PowerShell window enumeration, \`Get-Process\`, \`EnumWindows\`, \`tasklist\`, or ad hoc Python as a desktop-control fallback.
+- If the user asks which desktop apps or windows are open, or what is on the desktop, immediately call \`cmd.exe /c "%INTERPRETER_CLI_PATH%" tools builtin-cua-driver list_apps --json "{}"\`. Empty sandboxed PowerShell window titles are not a Computer Use failure. Never tell the user to open Task Manager instead.
 - For Electron, Chromium, and web-rendered desktop apps, treat \`HTML content\`, \`webarea\`, sparse UIA trees, or missing settable fields as ordinary Computer Use state, not as inaccessible content. Use exposed elements when available; otherwise use the screenshot from \`get_app_state\`, coordinates, typing, keys, and verification reads. Do not tell the user the app cannot be accessed just because a control is inside web content.
 - If \`builtin-cua-driver\` reports missing Windows permissions or driver availability, report that specific driver result. Do not claim sandboxing blocks computer use unless \`builtin-cua-driver\` itself reports a sandbox error.
 - Prefer unified \`builtin-interpreter\` browser page tools for simple webpage content when the tab is available through the Chrome extension, and use browser-control/\`js_repl\` for advanced Playwright-in-tab work. Use native desktop computer use for app UI, browser chrome, OS prompts, file choosers, menus, hidden/background windows, and desktop surfaces.`;
@@ -389,7 +423,12 @@ export function getMainAgentDeveloperPrompt(
         : ''
     : '';
   const bundledSkillGuidanceList = visibleBundledSkillNames
-    .map((skillName) => PROMPT_BUNDLED_SKILL_GUIDANCE[skillName] ?? `\`${skillName}\``);
+    .map((skillName) => {
+      if (skillName === 'computer-use' && injectAppToolsAsMcp) {
+        return '`computer-use` when the user asks which desktop apps or windows are open, or needs to inspect, click, type, or fill a native desktop app; call the injected `builtin-cua-driver__list_apps` / `__get_app_state` / `__type_text` tools by those exact names';
+      }
+      return PROMPT_BUNDLED_SKILL_GUIDANCE[skillName] ?? `\`${skillName}\``;
+    });
   const bundledSkillGuidanceText = bundledSkillGuidanceList.length > 0
     ? bundledSkillGuidanceList.join(', ')
     : 'no bundled global Interpreter skills';

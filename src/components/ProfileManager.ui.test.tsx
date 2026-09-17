@@ -92,6 +92,11 @@ const providersMocks = vi.hoisted(() => ({
   runClaudeLogin: vi.fn(async () => undefined),
   getClaudeCodeStatus: vi.fn(async () => ({ installed: true, loggedIn: true })),
   getCodexStatus: vi.fn(async () => ({ installed: true, loggedIn: true })),
+  listModelGatewayModels: vi.fn(async () => ({
+    configured: false,
+    models: [] as Array<{ id: string; name: string; isDefault: boolean; description?: string }>,
+    fetchedAt: Date.now(),
+  })),
 }));
 
 vi.mock('../api', () => apiMocks);
@@ -379,5 +384,63 @@ describe('ProfileManager', () => {
     await user.click(screen.getByRole('button', { name: en['common.tryAgain'] }));
 
     await screen.findByText('OpenAI API');
+  });
+
+  test('offers the online-models preset only when the build has a gateway', async () => {
+    render(<ProfileManager startInNewProfile />);
+
+    // Default mock reports no gateway, so a community build advertises none.
+    await screen.findByText('OpenAI API');
+    expect(screen.queryByText('Online models')).not.toBeInTheDocument();
+
+    providersMocks.listModelGatewayModels.mockResolvedValue({
+      configured: true,
+      models: [{ id: 'qwen3.8-max', name: '千问3.8-Max', isDefault: false }],
+      fetchedAt: Date.now(),
+    });
+
+    render(<ProfileManager startInNewProfile />);
+
+    expect(await screen.findByText('Online models')).toBeVisible();
+  });
+
+  test('creates a gateway profile on the model-gateway runtime profile, never on a synthetic id', async () => {
+    const user = userEvent.setup();
+    providersMocks.listModelGatewayModels.mockResolvedValue({
+      configured: true,
+      models: [{ id: 'qwen3.8-max', name: '千问3.8-Max', isDefault: false }],
+      fetchedAt: Date.now(),
+    });
+
+    render(<ProfileManager startInNewProfile />);
+
+    const card = await screen.findByText('Online models');
+    await user.click(card.closest('button') as HTMLButtonElement);
+
+    // The gateway's menu-entry id is app-only ('__app:model-gateway'); if preset
+    // assembly merged it in, it would land here and reach the app-server.
+    const modelOption = await screen.findByText('千问3.8-Max');
+    await user.click(modelOption.closest('button') as HTMLButtonElement);
+
+    await user.click(
+      await screen.findByRole('button', { name: en['settings.profiles.detail.createModel'] }),
+    );
+
+    await waitFor(() => {
+      expect(apiMocks.createProfile).toHaveBeenCalled();
+    });
+    const calls = apiMocks.createProfile.mock.calls;
+    const created = calls[calls.length - 1]?.[0] as {
+      provider: string;
+      modelId: string;
+      codexProfileId?: string;
+      baseURL?: string;
+      apiKey?: string;
+    };
+    expect(created.provider).toBe('gateway');
+    expect(created.modelId).toBe('qwen3.8-max');
+    expect(created.codexProfileId).toBe('model-gateway');
+    expect(created.baseURL).toBeUndefined();
+    expect(created.apiKey).toBeUndefined();
   });
 });

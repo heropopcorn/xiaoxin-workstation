@@ -7,6 +7,10 @@ import {
 export const PROFILE_IDS = [
   "default",
   "interpreter",
+  // Distribution-operated model gateway. Unlike the endpoint-backed presets
+  // below, it is not user-configurable: the endpoint comes from the product
+  // overlay and the model list comes from the gateway itself.
+  "model-gateway",
   "ollama",
   "ollama-cloud",
   "lmstudio",
@@ -43,6 +47,7 @@ export type ProfileOption = {
 export const PROFILE_OPTIONS: readonly ProfileOption[] = [
   { id: "default", label: "OpenAI" },
   { id: "interpreter", label: "Interpreter" },
+  { id: "model-gateway", label: "Online models" },
   { id: "ollama", label: "Ollama" },
   { id: "ollama-cloud", label: "Ollama Cloud" },
   { id: "lmstudio", label: "LM Studio" },

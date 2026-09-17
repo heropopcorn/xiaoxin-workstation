@@ -21,6 +21,7 @@ import type {
   OpenRouterModelCatalogResult,
   ApiPreset,
 } from '../shared/types/provider';
+import type { ModelGatewayCatalog } from '../server/handlers/modelGateway';
 import type { ProfileSetupStatus } from '../shared/types/profile';
 import type { ApiProviderModelOption } from './utils/apiProviderModelOptions';
 import type { v2 } from '../server/handlers/codex-generated-types/index';
@@ -474,6 +475,7 @@ interface ProvidersIpc {
   listInterpreterProviders(includeUnconfigured?: boolean): Promise<{ providers: v2.InterpreterProvider[] }>;
   setInterpreterProvider(providerId: string, profile?: string): Promise<{ success: true }>;
   listInterpreterModels(providerId?: string, includeHidden?: boolean): Promise<{ models: SupportedOpenAIOAuthModel[] }>;
+  listModelGatewayModels(): Promise<ModelGatewayCatalog>;
   setInterpreterModel(
     model: string,
     reasoningEffort?: v2.InterpreterModelSetParams["reasoningEffort"],

@@ -288,8 +288,9 @@ describe('bundled Codex skills', () => {
     expect(content).toContain('interpreter-app tools builtin-cua-driver get_app_state');
     expect(content).toContain('The tool surface is app-scoped and intentionally matches Computer Use');
     expect(content).toContain('launch_app({app?, name?, bundle_id?, path?, executable?, urls?})');
-    expect(content).toContain('When `builtin-cua-driver__...` tools are visible as top-level tools');
-    expect(content).toContain("Otherwise use `builtin-cua-driver` through Interpreter's normal CLI transport");
+    expect(content).toContain('Workstation exposes `builtin-cua-driver` to the model through Interpreter\'s CLI');
+    expect(content).not.toContain('tools are visible as top-level tools');
+    expect(content).toContain('interpreter-app tools builtin-cua-driver <tool-name>');
     expect(content).toContain('Do not use shell commands, AppleScript, AppKit, Quartz');
     expect(content).toContain('drag({app, from_x, from_y, to_x, to_y})');
     expect(content).toContain('get_app_state({app})');
@@ -322,6 +323,10 @@ describe('bundled Codex skills', () => {
     expect(windowsContent).toContain('launch_app({app?, path?, executable?, arguments?, window_style?})');
     expect(windowsContent).toContain('click({app, element_index?, x?, y?, click_count?, mouse_button?})');
     expect(windowsContent).toContain('type_text({app, text})');
+    expect(windowsContent).toContain('Workstation exposes `builtin-cua-driver` to the model through Interpreter\'s CLI');
+    expect(windowsContent).not.toContain('tools are visible as top-level tools');
+    expect(windowsContent).toContain('calling their `interpreter-app tools builtin-cua-driver` subcommands');
+    expect(windowsContent).toContain('`MainWindowHandle` of 0 is not a reason to stop.');
     expect(windowsContent).toContain('Do not use `Start-Process`');
     expect(windowsContent).toContain('<app_state>');
     expect(windowsContent).toContain('Electron, Chromium, and web-rendered desktop apps may expose broad `HTML');

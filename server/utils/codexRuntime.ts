@@ -16,7 +16,6 @@ import { formatLocalModelToolUseError, resolveLocalModelToolUseSupport, getOllam
 import { requiresFreshThread } from './codexThreadRecovery';
 import { appendCustomInstructionsToPrompt } from './customInstructions';
 import { getCodexService } from './codexSkillsBridge';
-import { assistBrowserPageReadTurn } from './browserPageReadAssist';
 import {
   getMainAgentBaseInstructions,
   getMainAgentDeveloperPrompt,
@@ -40,6 +39,7 @@ import {
   getProfile as getCodexProfile,
   isCustomPreset,
   isProfileId,
+  MODEL_GATEWAY_PROVIDER_ID,
   type Profile as CodexProfile,
   withAuthToken,
 } from '../../src/lib/codex/profiles';
@@ -91,35 +91,7 @@ const PROMPT_BUNDLED_SKILL_NAMES = [
   'browser-control',
 ] as const;
 const PROMPT_BUNDLED_SKILL_NAME_SET = new Set<string>(PROMPT_BUNDLED_SKILL_NAMES);
-const NATIVE_RUNTIME_TRANSCRIPT_TOOLS = [
-  {
-    name: 'update_plan',
-    description: 'Updates the task plan/checklist with steps and statuses.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        explanation: { type: 'string' },
-        plan: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              step: { type: 'string' },
-              status: {
-                type: 'string',
-                description: 'One of: pending, in_progress, completed',
-              },
-            },
-            required: ['step', 'status'],
-            additionalProperties: false,
-          },
-        },
-      },
-      required: ['plan'],
-      additionalProperties: false,
-    },
-  },
-] as const;
+const MAIN_AGENT_BASE_SKILL_NAMES = ['computer-use'] as const;
 const RUNTIME_SKILL_SCOPE_PRIORITY: Record<v2.SkillScope, number> = {
   repo: 3,
   user: 2,
@@ -532,7 +504,15 @@ function codexProfileFromStoredProfile(profile: AppProfile): CodexProfile {
         ? buildAppManagedModelProviderId(profile.codexProfileId)
         : profile.codexProfileId,
       model: profile.modelId || undefined,
-      harness: profile.harness,
+      // Default to native Codex shaping (see the `harness` doc comment in
+      // profiles.ts) instead of leaving this undefined. Leaving it
+      // undefined lets OIX's model-name harness auto-detect fire for any
+      // custom profile whose model id happens to match a known vendor
+      // pattern (e.g. "qwen3.7-max", "qwen3:32b"), silently replacing
+      // Workstation's developer instructions and tool shaping with a fixed
+      // vendor-CLI persona. Respect an explicit user-configured harness
+      // when present.
+      harness: profile.harness ?? null,
       ...(profile.baseURL && profile.apiKey
         ? {
             providerConfig: {
@@ -553,6 +533,10 @@ function codexProfileFromStoredProfile(profile: AppProfile): CodexProfile {
           }
         : {}),
     };
+  }
+
+  if (profile.provider === 'gateway') {
+    return getCodexProfile(MODEL_GATEWAY_PROVIDER_ID);
   }
 
   if (profile.provider === 'hosted') {
@@ -781,6 +765,10 @@ export function resolveCodexProfileFromModelConfig(
     }, modelConfig);
   }
 
+  if (modelConfig.provider === 'gateway') {
+    return withModelConfigHarness(getCodexProfile(MODEL_GATEWAY_PROVIDER_ID), modelConfig);
+  }
+
   if (modelConfig.provider === 'hosted') {
     return withModelConfigHarness(getCodexProfile('interpreter'), modelConfig);
   }
@@ -839,6 +827,9 @@ export async function buildCodexDeveloperInstructions(options: {
     options.interpreterCliAvailable,
     options.interpreterCliPath,
     {
+      // Workstation app tools are model-facing through interpreter-app. The
+      // thread config below deliberately clears mcp_servers, so describing
+      // these tools as directly injected would make the prompt untruthful.
       injectAppToolsAsMcp: false,
       bundledSkillNames,
       networkAccessEnabled,
@@ -937,6 +928,49 @@ function getPromptVisibleSkills(skills: RuntimeSkillMetadata[]): PromptVisibleSk
     path: skill.path,
     scope: skill.scope,
   }));
+}
+
+function buildMainAgentTurnSkills(
+  runtimeSkills: RuntimeSkillMetadata[],
+  explicitSkills: StreamSkillReference[] | undefined,
+  platform: NodeJS.Platform = process.platform,
+): StreamSkillReference[] | undefined {
+  const nextSkills = [...(explicitSkills ?? [])];
+
+  // The shipped computer-use skill is a desktop safety/transport contract, not
+  // an intent guess: GUI automation must cross the CUA driver boundary while
+  // ordinary code, filesystem, Git, build, and CLI work keeps using Shell.
+  // Attach that contract natively on supported desktop platforms so providers
+  // do not need to discover and read it from a large catalog before acting.
+  if (platform !== 'win32' && platform !== 'darwin') {
+    return nextSkills.length > 0 ? nextSkills : undefined;
+  }
+
+  for (const skillName of MAIN_AGENT_BASE_SKILL_NAMES) {
+    if (nextSkills.some((skill) => skill.name === skillName)) {
+      continue;
+    }
+
+    // Workstation-managed bundled skills are user-scoped. Do not silently
+    // auto-attach a repository skill that shadows the same name.
+    const runtimeSkill = runtimeSkills.find((skill) => (
+      skill.enabled
+      && skill.scope === 'user'
+      && skill.name === skillName
+    ));
+    if (!runtimeSkill) {
+      continue;
+    }
+
+    nextSkills.push({
+      id: `main-agent-base:${runtimeSkill.name}:${runtimeSkill.path}`,
+      label: runtimeSkill.name,
+      name: runtimeSkill.name,
+      path: runtimeSkill.path,
+    });
+  }
+
+  return nextSkills.length > 0 ? nextSkills : undefined;
 }
 
 function normalizeBinding(
@@ -1895,6 +1929,8 @@ function markTurnErrorFormattingContextFromEvent(
 
 async function logAgentTurnContext(options: {
   callerToken: string;
+  effectiveSkills?: StreamSkillReference[];
+  explicitSkills?: StreamSkillReference[];
   systemMessage: string;
   runtimeSkills: RuntimeSkillMetadata[];
   workspacePath?: string;
@@ -1903,6 +1939,21 @@ async function logAgentTurnContext(options: {
   if (!agentLogging) {
     return;
   }
+
+  agentLogging.logEvent?.({
+    kind: 'diagnostic',
+    type: 'oix_turn_start_input_prepared',
+    boundary: 'workstation_to_oix_app_server',
+    modelWireEvidence: false,
+    explicitSkills: (options.explicitSkills ?? []).map((skill) => ({
+      name: skill.name,
+      path: skill.path,
+    })),
+    effectiveSkills: (options.effectiveSkills ?? []).map((skill) => ({
+      name: skill.name,
+      path: skill.path,
+    })),
+  });
 
   agentLogging.logSystem?.(options.systemMessage);
 
@@ -1927,13 +1978,20 @@ async function logAgentTurnContext(options: {
         inputSchema: tool.inputSchema ?? null,
       }))
     ));
-    agentLogging.logTools?.([
-      ...NATIVE_RUNTIME_TRANSCRIPT_TOOLS,
-      ...tools,
-    ]);
+    // This is the interpreter-app CLI catalog, not the function-tool array
+    // serialized by OIX for the model provider. Keep it out of the transcript
+    // `tools` event: that event was previously mistaken for proof that these
+    // tools reached the model wire request.
+    agentLogging.logEvent?.({
+      kind: 'diagnostic',
+      type: 'interpreter_cli_catalog',
+      source: 'interpreter-app',
+      modelFacingTransport: 'cli',
+      tools,
+    });
   } catch (error) {
     console.warn(
-      '[Agent Runtime] Failed to log visible tools for transcript:',
+      '[Agent Runtime] Failed to log interpreter-app CLI catalog:',
       error instanceof Error ? error.message : error,
     );
   }
@@ -2027,7 +2085,12 @@ export async function runCodexAgentTurn(
   const callerConfig = { ...(options.config ?? {}) };
   delete callerConfig.mcp_servers;
   const threadConfig = {
-    ...(profile.harness !== undefined ? { harness: profile.harness } : {}),
+    // OIX's `Config.harness` is a plain `Option<String>`: sending JSON/TOML
+    // `null` collapses to `None` and still triggers the model-name harness
+    // auto-detect heuristic (see the `harness` doc comment in profiles.ts).
+    // Only an explicit empty string resolves to `Harness::Native`, so `null`
+    // is normalized to `""` here at the wire boundary.
+    ...(profile.harness !== undefined ? { harness: profile.harness ?? '' } : {}),
     ...callerConfig,
     ...(options.usesChatGptAuth ? { forced_login_method: 'chatgpt' } : {}),
     // App tools are discovered and executed through the shell-visible
@@ -2087,7 +2150,6 @@ export async function runCodexAgentTurn(
     'turn context',
     options.service,
   );
-  const assistedMessage = await assistBrowserPageReadTurn(options.message);
   const developerInstructions = await buildCodexDeveloperInstructions({
     modelId: resolvedModel,
     interpreterCliAvailable: true,
@@ -2100,9 +2162,16 @@ export async function runCodexAgentTurn(
     getMainAgentBaseInstructions(),
     developerInstructions,
   ].filter(Boolean).join('\n\n');
+  const initialTurnSkills = buildMainAgentTurnSkills(runtimeSkills, options.skills);
+
+  console.log(
+    `[AGENT] oix_turn_input_prepared boundary=workstation_to_oix_app_server explicitSkillCount=${options.skills?.length ?? 0} effectiveSkillCount=${initialTurnSkills?.length ?? 0} effectiveSkillNames=${JSON.stringify(initialTurnSkills?.map((skill) => skill.name) ?? [])} modelWireEvidence=false`,
+  );
 
   await logAgentTurnContext({
     callerToken,
+    effectiveSkills: initialTurnSkills,
+    explicitSkills: options.skills,
     systemMessage,
     runtimeSkills,
     workspacePath: options.workspacePath,
@@ -2113,9 +2182,9 @@ export async function runCodexAgentTurn(
 
   try {
     let threadId = options.threadId;
-    let nextMessage = assistedMessage;
+    let nextMessage = options.message;
     let nextAttachments = options.attachments;
-    let nextSkills = options.skills;
+    let nextSkills = initialTurnSkills;
     let continuationAttempt = 0;
     let idleRecoveryAttempt = 0;
 

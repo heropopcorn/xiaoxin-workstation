@@ -10,6 +10,7 @@ import { Server, Terminal, Key, Download } from 'lucide-react';
 import { Button } from './ui/button';
 import { OpenAIIcon } from './icons/BrandIcons';
 import { HostedModelPicker } from './HostedModelPicker';
+import { ModelGatewayPicker } from './ModelGatewayPicker';
 import {
   CUSTOM_RESPONSES_API_BASE_URL_SELECTION_ID,
   ResponsesApiBaseUrlPicker,
@@ -86,6 +87,7 @@ import {
 } from '../utils/apiProviderModelOptions';
 import { ACTIVE_APP_BRAND } from '@/branding';
 import { useHostedModelCatalog } from '../hooks/use-hosted-model-catalog';
+import { useModelGatewayCatalog } from '../hooks/use-model-gateway-catalog';
 import { useDeepSeekModelOptions } from '../hooks/use-deepseek-model-options';
 import { useInterpreterModels } from '../hooks/use-interpreter-models';
 import {
@@ -95,7 +97,7 @@ import {
 
 // Base provider types
 // 'agent' covers direct CLI providers (Claude Code, Codex)
-type ProviderType = 'hosted' | 'local' | 'openai-oauth' | 'agent' | 'api' | 'terminal';
+type ProviderType = 'hosted' | 'gateway' | 'local' | 'openai-oauth' | 'agent' | 'api' | 'terminal';
 
 interface ProviderTab {
   id: ProviderType;
@@ -168,8 +170,18 @@ const AGENT_TAB: ProviderTab = {
   description: 'Legacy CLI agent backend (edit existing only).',
 };
 
+// Not in SELECTABLE_PROVIDER_TABS: a gateway profile is not a lane the user
+// switches into by hand. It exists only when the distribution operates a
+// gateway, and the preset card in ProfileManager is the way in.
+const MODEL_GATEWAY_TAB: ProviderTab = {
+  id: 'gateway',
+  label: 'Online models',
+  icon: <ACTIVE_APP_BRAND.SymbolMark aria-hidden="true" className="size-4" />,
+  description: 'Models provided by your Interpreter service. The service owns the endpoint and the model list.',
+};
+
 const PROVIDER_TAB_BY_ID = Object.fromEntries(
-  [...SELECTABLE_PROVIDER_TABS, AGENT_TAB].map((tab) => [tab.id, tab])
+  [...SELECTABLE_PROVIDER_TABS, AGENT_TAB, MODEL_GATEWAY_TAB].map((tab) => [tab.id, tab])
 ) as Record<ProviderType, ProviderTab>;
 
 function getApiCodexProfileId(baseURL: string): string {
@@ -327,6 +339,7 @@ export function ProfileProviderConfig({ profile, onChange }: ProfileProviderConf
   const { isAuthenticated } = useAuth();
 
   const getCurrentType = (): ProviderType => {
+    if (profile.provider === 'gateway') return 'gateway';
     if (profile.provider === 'hosted' && !profile.apiKey && !profile.baseURL) return 'hosted';
     if (profile.provider === 'local') return 'local';
     if (profile.provider === 'openai-oauth') return 'openai-oauth';
@@ -433,6 +446,12 @@ export function ProfileProviderConfig({ profile, onChange }: ProfileProviderConf
     error: hostedCatalogError,
     refresh: refreshHostedCatalog,
   } = useHostedModelCatalog();
+  const {
+    catalog: gatewayCatalog,
+    loading: gatewayCatalogLoading,
+    error: gatewayCatalogError,
+    refresh: refreshGatewayCatalog,
+  } = useModelGatewayCatalog();
   // Model discovery comes from OIX. Known endpoint presets retain their
   // specialized presentation, while generic OIX providers use the exact
   // `codexProfileId` saved on the profile.
@@ -1081,6 +1100,7 @@ export function ProfileProviderConfig({ profile, onChange }: ProfileProviderConf
 
   const providerLabelKeys: Record<ProviderType, string> = {
     hosted: 'settings.profiles.provider.hosted.label',
+    gateway: 'settings.profiles.provider.modelGateway.label',
     'openai-oauth': 'settings.profiles.provider.openaiOauth.label',
     local: 'settings.profiles.provider.local.label',
     api: 'settings.profiles.provider.api.label',
@@ -1100,6 +1120,21 @@ export function ProfileProviderConfig({ profile, onChange }: ProfileProviderConf
 
   const providerContent = (() => {
     switch (selectedType) {
+      case 'gateway':
+        return (
+          <ProviderPanel tab={PROVIDER_TAB_BY_ID.gateway}>
+            <ModelGatewayPicker
+              label={t('settings.profiles.provider.model.label')}
+              description={t('settings.profiles.provider.modelGateway.modelDescription')}
+              modelId={profile.modelId}
+              catalog={gatewayCatalog}
+              loading={gatewayCatalogLoading}
+              error={gatewayCatalogError}
+              onModelChange={(modelId, name) => onChange({ modelId, ...(name ? { name } : {}) })}
+              onRefresh={refreshGatewayCatalog}
+            />
+          </ProviderPanel>
+        );
       case 'hosted':
         return (
           <ProviderPanel tab={PROVIDER_TAB_BY_ID.hosted}>

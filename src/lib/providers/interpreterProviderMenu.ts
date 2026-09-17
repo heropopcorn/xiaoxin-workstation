@@ -67,6 +67,7 @@ export const APP_SPECIAL_PROVIDER_IDS = {
   HOSTED: '__app:hosted',
   AGENT: '__app:agent',
   CUSTOM: '__app:custom',
+  MODEL_GATEWAY: '__app:model-gateway',
 } as const;
 
 /**
@@ -297,9 +298,30 @@ function mapOixProviderToMenuEntry(
  *
  * Both gaps are tracked here as the canonical gap inventory for the provider
  * menu reconciliation; keep this block in sync with the fallback datum sites.
+ *
+ * The model-gateway entry below is NOT a gap. A distribution-operated gateway is
+ * unknowable to the runtime by construction: its endpoint comes from the product
+ * overlay and its catalog is served by the operator, so there is nothing for
+ * listInterpreterProviders() to enumerate and nothing to remove later. It is
+ * included only when the caller reports a reachable gateway, because a build
+ * with no gateway configured must not advertise one.
  */
-function buildAppSpecialProviderEntries(): ProviderMenuEntry[] {
+function buildAppSpecialProviderEntries(
+  options?: { includeModelGateway?: boolean },
+): ProviderMenuEntry[] {
   return [
+    ...(options?.includeModelGateway
+      ? [{
+        oixProviderId: APP_SPECIAL_PROVIDER_IDS.MODEL_GATEWAY,
+        appProviderType: 'gateway' as const,
+        displayName: 'Online models',
+        description: 'Models provided by your Interpreter service.',
+        iconKey: 'interpreter' as const,
+        isCurrent: false,
+        configured: true,
+        isDefault: false,
+      }]
+      : []),
     {
       oixProviderId: APP_SPECIAL_PROVIDER_IDS.HOSTED,
       appProviderType: 'hosted',
@@ -379,10 +401,14 @@ function sortProviderMenuEntries(a: ProviderMenuEntry, b: ProviderMenuEntry): nu
  * @param runtimeProviders - v2.InterpreterProvider[] from
  *   providersIpc.listInterpreterProviders(includeUnconfigured?). The documented
  *   fallback hosted + CLI-agent entries are merged in.
+ * @param options.includeModelGateway - whether this build has a reachable model
+ *   gateway. The renderer cannot answer that itself (the endpoint override lives
+ *   in the main process environment), so the caller passes the answer down.
  * @returns ProviderMenuEntry[] sorted with sortProviderMenuEntries.
  */
 export function buildProviderMenuEntries(
   runtimeProviders: v2.InterpreterProvider[],
+  options?: { includeModelGateway?: boolean },
 ): ProviderMenuEntry[] {
   const mapped = runtimeProviders.flatMap((provider) => {
     const entry = mapOixProviderToMenuEntry(provider);
@@ -401,7 +427,7 @@ export function buildProviderMenuEntries(
     ];
   });
 
-  return [...mapped, ...buildAppSpecialProviderEntries()].sort(sortProviderMenuEntries);
+  return [...mapped, ...buildAppSpecialProviderEntries(options)].sort(sortProviderMenuEntries);
 }
 
 /**

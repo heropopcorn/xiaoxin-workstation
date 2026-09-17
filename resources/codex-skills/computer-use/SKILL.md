@@ -1,6 +1,6 @@
 ---
 name: computer-use
-description: Drive a native desktop app through Interpreter's builtin-cua-driver. Use get_app_state, click/type/scroll/drag, and verify by calling get_app_state again when the user asks to operate a real desktop app, browser chrome, native dialog, menu, secure prompt, file chooser, or hidden/background window.
+description: Use this skill when the user asks which desktop apps or windows are open, or needs to inspect, click, type, or fill a native desktop app, browser chrome, OS prompt, file chooser, menu, or hidden/background window. Start with list_apps for inventory. Use get_app_state, then click/type/scroll/drag, and verify with get_app_state again.
 ---
 
 # Computer Use
@@ -8,10 +8,12 @@ description: Drive a native desktop app through Interpreter's builtin-cua-driver
 This skill is workflow guidance, not a callable tool. Do not call a tool named
 `computer-use`; use the actual `builtin-cua-driver` tools described below.
 
-When `builtin-cua-driver__...` tools are visible as top-level tools, call those
-tools directly so screenshots are delivered as structured image content.
+This workflow applies only to desktop GUI discovery and control. Keep using the
+ordinary Shell tool for code, files, Git, builds, tests, and command-line
+programs; do not route those tasks through Computer Use.
 
-Otherwise use `builtin-cua-driver` through Interpreter's normal CLI transport:
+Workstation exposes `builtin-cua-driver` to the model through Interpreter's CLI
+transport:
 
 ```bash
 interpreter-app tools builtin-cua-driver <tool-name> --json '<json-object>'
@@ -39,8 +41,14 @@ The tool surface is app-scoped and intentionally matches Computer Use:
 
 Use `launch_app` only when the target app is not already open or the user asks
 to open it. Start ordinary interaction with `get_app_state({app})` when the
-target app is known. Use `list_apps({})` only when the target app name is
-unclear.
+target app is known. Use `list_apps({})` when the user asks which apps or
+windows are open, or when the target app name is unclear. Do not enumerate
+windows with shell, AppleScript, AppKit, Quartz, or ad hoc Python.
+
+Do not say `list_apps`, `get_app_state`, or `type_text` are missing before
+calling their `interpreter-app tools builtin-cua-driver` subcommands. If the
+user already opened a text document window, that is an OS window, not Welcome.md.
+Never ask the user to copy-paste, and never fall back to shell window APIs.
 
 `get_app_state` returns a screenshot plus a text block shaped like:
 

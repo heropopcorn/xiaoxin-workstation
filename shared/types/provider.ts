@@ -17,6 +17,7 @@ import { isVersionBelow, tryNormalizeVersion } from '../utils/version';
  */
 export type ProviderType =
   | 'hosted'        // Built-in hosted service
+  | 'gateway'       // Distribution-operated model gateway (endpoint and catalog come from the operator)
   | 'openai-oauth'  // Sign in with ChatGPT (OAuth)
   | 'api'           // API key providers (OpenAI, Groq, OpenRouter, custom)
   | 'local'         // Local runtime (Ollama or LM Studio)

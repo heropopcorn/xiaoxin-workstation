@@ -27,6 +27,7 @@
   "distribution": {
     "id": "xiaoxin",
     "hostedApiBaseUrl": "",
+    "modelGatewayBaseUrl": "",
     "auth": {
       "provider": "none",
       "url": "",

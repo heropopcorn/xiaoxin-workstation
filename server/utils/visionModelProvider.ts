@@ -15,6 +15,7 @@ import {
   buildProfileFromPreset,
   getCustomPreset,
   getProfile as getCodexProfile,
+  MODEL_GATEWAY_PROVIDER_ID,
   type Profile as CodexProfile,
   withAuthToken,
 } from '../../src/lib/codex/profiles';
@@ -26,6 +27,11 @@ function resolveVisionCodexProfile(config: ModelConfig): CodexProfile {
     const profile = getCodexProfile('interpreter');
     const jwt = getServerJWT();
     return jwt ? withAuthToken(profile, jwt) : profile;
+  }
+  if (config.provider === 'gateway') {
+    // Several gateway models accept images; the endpoint is the same one the
+    // text turn uses, so there is no separate vision endpoint to infer.
+    return getCodexProfile(MODEL_GATEWAY_PROVIDER_ID);
   }
   if (config.provider === 'openai-oauth') {
     return getCodexProfile('default');

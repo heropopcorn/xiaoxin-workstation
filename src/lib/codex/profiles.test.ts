@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { getLocalModelProviderRuntime } from "../../../shared/types/provider";
 
 import {
+  CUSTOM_PRESETS,
   buildAppManagedModelProviderId,
   buildProfileFromPreset,
   getCustomPreset,
@@ -146,6 +147,21 @@ describe("codex profiles", () => {
     const profile = buildProfileFromPreset(preset);
     assert.ok(profile.providerConfig, "ollama profile should include provider config");
     assert.equal(profile.providerConfig.wire_api, "chat");
+  });
+
+  test("every preset requests the native harness rather than leaving it unset", () => {
+    for (const preset of CUSTOM_PRESETS) {
+      const profile = buildProfileFromPreset(preset);
+      // Undefined would let OIX pick a harness by matching the model name, which
+      // swaps in a vendor-CLI persona and drops Workstation's own instructions
+      // and tool shaping. Null is the explicit "native" request; the wire
+      // boundary in codexRuntime.ts turns it into the empty string OIX needs.
+      assert.strictEqual(
+        profile.harness,
+        null,
+        `${preset.id} preset must request the native harness explicitly`,
+      );
+    }
   });
 
   test("ollama preset still supports an explicit responses wire api override", () => {
