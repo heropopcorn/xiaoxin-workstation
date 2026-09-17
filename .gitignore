@@ -73,6 +73,7 @@ tests/test-workspace*/
 
 # Rust build artifacts
 apps/interpreter-cua/target/
+submodules/xiaoxin-oix/codex-rs/target/
 server/services/sandbox/target/
 server/services/sandbox/vendor/
 

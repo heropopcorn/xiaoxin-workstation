@@ -1,0 +1,4 @@
+# OIX runtime source is a pinned submodule (~1.1M lines of Rust). Indexing it
+# here drowns Workstation searches. Edit runtime code in that checkout (or the
+# sibling D:\project\openinterpreter-oix). See docs/xiaoxin-upstream.md.
+submodules/xiaoxin-oix/

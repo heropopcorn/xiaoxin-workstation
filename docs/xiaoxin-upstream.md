@@ -13,24 +13,27 @@ protocol, approval queue, or local runtime.
   - `apps/interpreter-extension`: `0eee03a0f1a58775245377e68067ca2ec74afa34`
   - `apps/interpreter-extension/playwright`: `d36d4155c75471e583b823c8194fc166866da961`
   - `submodules/interpreter-cua`: `c522652d4b11dc9cb50360d0192e7a6e2bab3157`
+  - `submodules/xiaoxin-oix`: `63e725da14006128ea3c876afc1b0115be3555e8`
 
 ## OIX runtime source
 
-This repository ships only the prebuilt runtime (`resources/oix/**`,
-`VERSION` = `rust-v0.0.34`, fetched by `scripts/download-oix.mjs`). **The
-matching OIX source is checked out separately and is available locally.** It is
-outside this repository and outside the editor workspace, so a search scoped to
-`xiaoxin-workstation` will not find it. Do not conclude from that absence that
-the source is unavailable.
+This repository ships the prebuilt runtime (`resources/oix/**`,
+`VERSION` = `rust-v0.0.34`, fetched by `scripts/download-oix.mjs`). The
+matching source is a **pinned Git submodule**, so GitHub shows the association
+and clones can fetch it with `--recurse-submodules`.
 
-- Local checkout: `D:\project\openinterpreter-oix`
-- Our fork (`origin`): <https://github.com/heropopcorn/xiaoxin-oix>, branch
-  `xiaoxin/rust-v0.0.34`. A depth-1 vendored import of the pinned tag, not a
-  full-history fork; upstream's `.github/workflows/` is excluded so its release
-  and publish pipelines can never run under our account.
-- Upstream (`upstream`): <https://github.com/openinterpreter/openinterpreter.git>
+- Submodule: `submodules/xiaoxin-oix`
+- Our fork: <https://github.com/heropopcorn/xiaoxin-oix>, branch
+  `xiaoxin/rust-v0.0.34`, commit
+  `63e725da14006128ea3c876afc1b0115be3555e8`
+- A depth-1 vendored import of the pinned tag, not a full-history fork;
+  upstream's `.github/workflows/` is excluded so its release and publish
+  pipelines can never run under our account.
+- Upstream: <https://github.com/openinterpreter/openinterpreter.git>
 - Pinned at tag `rust-v0.0.34`, upstream commit
   `52a31019714294add53cafbc5268e1467b471263`
+- Optional sibling checkout for local builds:
+  `D:\project\openinterpreter-oix` (same pin; not a second source of truth)
 - Scale: 2,555 `.rs` files, 1,165,276 lines, 136 crates under `codex-rs/`
 - App-server seam implementation: `codex-rs/app-server`,
   `app-server-protocol`, `app-server-transport`

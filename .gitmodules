@@ -6,3 +6,7 @@
 	path = submodules/interpreter-cua
 	url = https://github.com/openinterpreter/interpreter-cua.git
 	branch = main
+[submodule "submodules/xiaoxin-oix"]
+	path = submodules/xiaoxin-oix
+	url = https://github.com/heropopcorn/xiaoxin-oix.git
+	branch = xiaoxin/rust-v0.0.34

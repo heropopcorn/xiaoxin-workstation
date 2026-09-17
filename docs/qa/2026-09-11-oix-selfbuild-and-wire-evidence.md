@@ -232,8 +232,8 @@ OIX 里。
 2. CUA 工具注入未实施。验收必须以网关 `request.json` 的 `tools` 数组为准。
 3. 自建产物没有分发通道。约 343 MB 的二进制不能进 git，`scripts/download-oix.mjs`
    目前取的是上游 release。要把自建产物变成默认，需要先有存放处。
-4. fork 尚未转成 submodule。现在只是并列的本地 checkout，`docs/xiaoxin-upstream.md`
-   记的是路径而不是钉定 commit（可参照 `submodules/interpreter-cua` 的形态）。
+4. fork 已钉为 `submodules/xiaoxin-oix`（`63e725da`，分支
+   `xiaoxin/rust-v0.0.34`）。见 `docs/xiaoxin-upstream.md`。
 5. `pnpm typecheck` 仍被 `verify:xiaoxin-distribution` 中既有的 PowerShell 语法
    错误提前阻断（`Unexpected token 'off'`）。直接运行 `npx tsc --noEmit` 与
    `npx tsc -p tsconfig.electron.json --noEmit` 可通过。

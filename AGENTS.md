@@ -52,11 +52,13 @@ become a second application or owner of canonical client release logic.
 
 ## Dependencies and provenance
 
-- The OIX runtime source **is available locally** at
-  `D:\project\openinterpreter-oix`, pinned to the same `rust-v0.0.34` tag as
-  `resources/oix/VERSION`. It sits outside this repository and outside the
-  editor workspace, so repository-scoped searches will not find it; never
-  report the OIX source as missing or unobtainable. See
+- The OIX runtime source is the pinned submodule `submodules/xiaoxin-oix`
+  (`https://github.com/heropopcorn/xiaoxin-oix`, branch `xiaoxin/rust-v0.0.34`),
+  matching `resources/oix/VERSION` (`rust-v0.0.34`). Runtime changes belong
+  there, not in this repository. A sibling checkout at
+  `D:\project\openinterpreter-oix` may exist for local builds; it is the same
+  pin. The tree is excluded from editor indexing (`.cursorignore`) so it does
+  not drown Workstation searches — that absence is not “source missing”. See
   `docs/xiaoxin-upstream.md`.
 - `apps/interpreter-extension` is the Open Interpreter browser-extension
   submodule and retains its independent release history and Playwriter ancestry.
